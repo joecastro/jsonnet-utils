@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Tests: Run",
+      "type": "shell",
+      "command": "npm test",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "npm: build",
+      "type": "npm",
+      "script": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "jsonnet: build test results",
+      "type": "shell",
+      "command": "mkdir -p out && jsonnet tests/all.jsonnet > out/results.json",
+      "problemMatcher": []
+    }
+  ]
+}

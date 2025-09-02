@@ -1,0 +1,52 @@
+{
+  "env": {
+    "es2022": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "out/",
+    "dist/",
+    "node_modules/"
+  ],
+  "extends": [
+    "eslint:recommended",
+    "plugin:@typescript-eslint/recommended"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "overrides": [
+    {
+      "files": [
+        "**/*.ts"
+      ],
+      "rules": {
+        "@typescript-eslint/no-unused-vars": [
+          "warn",
+          {
+            "argsIgnorePattern": "^_"
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "**/*.mjs",
+        "**/*.js"
+      ],
+      "rules": {
+        "no-unused-vars": [
+          "warn",
+          {
+            "argsIgnorePattern": "^_"
+          }
+        ]
+      }
+    }
+  ],
+  "parser": "@typescript-eslint/parser",
+  "plugins": [
+    "@typescript-eslint"
+  ]
+}

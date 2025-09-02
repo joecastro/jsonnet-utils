@@ -1,0 +1,14 @@
+{
+  "files.associations": {
+    "*.libsonnet": "jsonnet",
+    "*.jsonnet": "jsonnet"
+  },
+  "files.exclude": {
+    "node_modules": true,
+    "out": true,
+    "dist": true
+  },
+  "editor.formatOnSave": false,
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true
+}

@@ -12,16 +12,26 @@
       "problemMatcher": []
     },
     {
-      "label": "npm: build",
+      "label": "npm: lint",
       "type": "npm",
-      "script": "build",
-      "problemMatcher": []
+      "script": "lint",
+      "problemMatcher": [
+        "$eslint-stylish"
+      ],
+      "presentation": {
+        "reveal": "always"
+      }
     },
     {
-      "label": "jsonnet: build test results",
-      "type": "shell",
-      "command": "mkdir -p out && jsonnet tests/all.jsonnet > out/results.json",
-      "problemMatcher": []
+      "label": "npm: lint:fix",
+      "type": "npm",
+      "script": "lint:fix",
+      "problemMatcher": [
+        "$eslint-stylish"
+      ],
+      "presentation": {
+        "reveal": "always"
+      }
     }
   ]
 }

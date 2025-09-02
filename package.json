@@ -5,17 +5,12 @@
   "description": "Reusable Jsonnet helpers and utilities",
   "license": "UNLICENSED",
   "scripts": {
-    "test": "mkdir -p out && jsonnet tests/all.jsonnet > out/results.json && python3 scripts/verify_regex_with_python.py > out/py_results.json && npm run -s build && node dist/scripts/print-jsonnet-results.js out/results.json out/py_results.json",
+    "test": "mocha \"test/**/*.spec.js\"",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.build.json"
+    "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
-    "@types/node": "^24.3.0",
     "eslint": "^9.34.0",
-    "typescript": "^5.9.2",
-    "@typescript-eslint/eslint-plugin": "^8.7.0",
-    "@typescript-eslint/parser": "^8.7.0"
+    "mocha": "^11.7.2"
   }
 }

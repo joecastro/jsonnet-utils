@@ -16,9 +16,9 @@ Project Layout
 - `src/stdEx.libsonnet`: stdlib extensions and manifest helpers.
 - `src/packageDefinitions.libsonnet`: package.json DSL and manifest generator.
 - `src/vscode.libsonnet`: VS Code launch/task helpers.
-- `src/extensionDefinitions.libsonnet`: extension manifest building blocks.
+- `src/vscode-extensionDefinitions.libsonnet`: extension manifest building blocks.
 - `src/vscode-iconDefinitions.libsonnet`: icon helpers (minimal CodIcons map; extend as needed).
-- `tests/`: Jsonnet-based tests and aggregator (`tests/all.jsonnet`).
+- `tests/`: Jsonnet-based test suites (`*_test.jsonnet`).
 
 Requirements
 ------------
@@ -29,13 +29,7 @@ Requirements
 Running Tests
 -------------
 - Preferred: `npm test`
-- Direct: `jsonnet tests/all.jsonnet`
-
-Development
------------
-- Build TS: `npm run build` (emits to `dist/`)
-- Typecheck: `npm run typecheck`
-- Lint: `npm run lint` (or `npm run lint:fix`)
+- Direct: run a specific suite, e.g. `jsonnet tests/regex_test.jsonnet`
 
 CI runs `npm test` via GitHub Actions: `.github/workflows/jsonnet-tests.yml`.
 

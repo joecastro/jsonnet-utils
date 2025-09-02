@@ -1,5 +1,5 @@
 local T = import './test.libsonnet';
-local ext = import '../src/extensionDefinitions.libsonnet';
+local ext = import '../src/vscode-extensionDefinitions.libsonnet';
 
 local cfg = ext.bind('myext').ConfigurationProperty;
 

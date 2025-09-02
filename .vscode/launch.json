@@ -10,17 +10,6 @@
         "test"
       ],
       "console": "integratedTerminal"
-    },
-    {
-      "name": "Format Test Results",
-      "type": "node",
-      "request": "launch",
-      "program": "${workspaceFolder}/dist/scripts/print-jsonnet-results.js",
-      "args": [
-        "${workspaceFolder}/out/results.json"
-      ],
-      "preLaunchTask": "npm: build",
-      "console": "integratedTerminal"
     }
   ]
 }

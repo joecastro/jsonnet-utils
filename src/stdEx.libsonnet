@@ -7,6 +7,11 @@ local indexOf(arr, elem) =
     local find_results = std.find(elem, arr);
     if L(find_results) == 0 then -1 else find_results[0];
 
+local objectFromArrays(keys, values) = {
+    [keys[i]]: values[i]
+    for i in std.range(0, std.length(keys) - 1)
+};
+
 // Copied from jsonnet std library. Added a key_sort_func parameter to sort
 // JSON properties in a preferred order (e.g. for idiomatic readability in package.json).
 
@@ -57,30 +62,32 @@ local propertyValueOf(v) =
     else
         error 'Unsupported value type';
 
-local manifestProperties(value) =
+local manifestProperties(value, key_sort_func=null) =
     assert std.isObject(value);
-    std.join('\n', ['%s=%s' % [k, propertyValueOf(value[k])] for k in std.sort(std.objectFields(value))]);
+    local keys = std.objectFields(value);
+    local ordered = if key_sort_func == null then std.sort(keys) else std.sort(keys, key_sort_func);
+    std.join('\n', ['%s=%s' % [k, propertyValueOf(value[k])] for k in ordered]);
 
 // Generic JSON manifest (no key ordering tweaks)
-local manifestJson(value) = std.manifestJsonEx(value);
+local manifestJson(value) = manifestJsonEx(value, '    ', '\n', ': ', function(k) k);
 
 local capitalizeWord(w) =
-  if L(w) == 0 then '' else
-  std.asciiUpper(w[0:1]) + std.asciiLower(w[1:]);
+    if L(w) == 0 then '' else
+    std.asciiUpper(w[0:1]) + std.asciiLower(w[1:]);
 
 local splitWords(s) =
-  std.split(std.strReplace(std.strReplace(s, "-", " "), "_", " "), " ");
+    std.split(std.strReplace(std.strReplace(s, "-", " "), "_", " "), " ");
 
 local pascalCase(s) =
-  std.join('', [capitalizeWord(w) for w in splitWords(s)]);
+    std.join('', [capitalizeWord(w) for w in splitWords(s)]);
 
 local camelCase(s) =
-  local words = splitWords(s);
-  if L(words) == 0 then ''
-  else std.asciiLower(words[0]) + std.join('', [capitalizeWord(w) for w in words[1:]]);
+    local words = splitWords(s);
+    if L(words) == 0 then ''
+    else std.asciiLower(words[0]) + std.join('', [capitalizeWord(w) for w in words[1:]]);
 
 local titleCase(s) =
-  std.join(' ', [capitalizeWord(w) for w in std.split(s, " ")]);
+    std.join(' ', [capitalizeWord(w) for w in std.split(s, " ")]);
 
 {
     manifestProperties: manifestProperties,
@@ -90,6 +97,7 @@ local titleCase(s) =
     camelCase: camelCase,
     titleCase: titleCase,
     indexOf: indexOf,
+    objectFromArrays: objectFromArrays,
     matchRegex: re.match,
     validateRegex: re.validate,
 }

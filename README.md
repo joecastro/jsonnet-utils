@@ -18,7 +18,7 @@ Project Layout
 - `src/vscode.libsonnet`: VS Code launch/task helpers.
 - `src/vscode-extensionDefinitions.libsonnet`: extension manifest building blocks.
 - `src/vscode-iconDefinitions.libsonnet`: icon helpers (minimal CodIcons map; extend as needed).
-- `tests/`: Jsonnet-based test suites (`*_test.jsonnet`).
+- `test/`: Jsonnet-based test suites (`*_test.jsonnet`) and Mocha spec.
 
 Requirements
 ------------
@@ -29,7 +29,7 @@ Requirements
 Running Tests
 -------------
 - Preferred: `npm test`
-- Direct: run a specific suite, e.g. `jsonnet tests/regex_test.jsonnet`
+- Direct: run a specific suite, e.g. `jsonnet test/regex_test.jsonnet`
 
 CI runs `npm test` via GitHub Actions: `.github/workflows/jsonnet-tests.yml`.
 

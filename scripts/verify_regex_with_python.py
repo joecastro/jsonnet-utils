@@ -7,7 +7,7 @@ import re
 def load_blocks():
     try:
         p = subprocess.run(
-            ["jsonnet", "tests/regex_test.jsonnet"],
+            ["jsonnet", "test/regex_test.jsonnet"],
             check=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

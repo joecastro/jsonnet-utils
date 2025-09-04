@@ -31,25 +31,6 @@ local Script(key, action = '', description, dependsOn=[]) = {
 
 };
 
-local prismaScriptPrefix = 'db';
-local prismaScripts = {
-  generate: Script(prismaScriptPrefix + ':generate', 'prisma generate', 'Generate the database'),
-  migrate: Script(prismaScriptPrefix + ':migrate', 'prisma migrate dev --name init', 'Migrate the database'),
-  deploy: Script(prismaScriptPrefix + ':deploy', 'prisma migrate deploy', 'Deploy the database'),
-  seed: Script(prismaScriptPrefix + ':seed', 'prisma db seed', 'Seed the database'),
-  studio: Script(prismaScriptPrefix + ':studio', 'prisma studio', 'Open Prisma Studio'),
-  status: Script(prismaScriptPrefix + ':status', 'prisma migrate status', 'Show migration status'),
-  reset: Script(prismaScriptPrefix + ':reset', 'prisma migrate reset --force', 'Drop, migrate, and seed database (force)'),
-  reset_noseed: Script(prismaScriptPrefix + ':reset:noseed', 'prisma migrate reset --force --skip-seed', 'Drop and migrate without running seed'),
-  pull: Script(prismaScriptPrefix + ':pull', 'prisma db pull', 'Introspect database into Prisma schema'),
-  push: Script(prismaScriptPrefix + ':push', 'prisma db push', 'Push the database schema'),
-};
-
-local dockerScripts = {
-  up: Script('docker:up', 'docker compose up -d', 'Start docker-compose services'),
-  down: Script('docker:down', 'docker compose down -v', 'Stop docker-compose services and remove volumes'),
-};
-
 local Engine(name, version) = {
     name: name,
     version: version,
@@ -120,7 +101,4 @@ local manifestPackageJson(packageInfo) = stdEx.manifestJsonEx(
     Engine:: Engine,
     Package:: Package,
     Script:: Script,
-    prismaScripts:: prismaScripts,
-    dockerScripts:: dockerScripts,
 }
-

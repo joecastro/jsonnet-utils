@@ -41,15 +41,20 @@ local blocks = {
     { name: 'match: (?<=) find preceded',      pattern: '(?<=foo)bar',          subject: 'xxfoobar', expect: true },
     { name: 'match: negative lookbehind excludes suffix', pattern: '^first.*(?<!:third)$', subject: 'first:second', expect: true },
     { name: 'match: negative lookbehind matches forbidden suffix', pattern: '^first.*(?<!:third)$',  subject: 'first:second:third',  expect: false },
+    { name: 'match: negative lookbehind at end', pattern: '^first:second:', subject: 'first:second:third', expect: true }
   ],
 };
 
 {
   blocks: blocks,
-  tests:
-    [ T.truthy(v.name, re.validate(v.pattern).ok, re.validate(v.pattern)) for v in blocks.validate if v.expect ]
-    + [ T.falsy(v.name, re.validate(v.pattern).ok, re.validate(v.pattern)) for v in blocks.validate if !v.expect ]
-    + [
+  suites: [
+    T.suite('validate',
+      [ T.truthy(v.name, re.validate(v.pattern).ok, re.validate(v.pattern)) for v in blocks.validate if v.expect ]
+      + [ T.falsy(v.name, re.validate(v.pattern).ok, re.validate(v.pattern)) for v in blocks.validate if !v.expect ]
+    ),
+
+    T.suite('match',
+      [
         (local val = re.validate(m.pattern);
          if val.ok then
            if m.expect then T.truthy(m.name, re.match(m.pattern, m.subject))
@@ -57,6 +62,8 @@ local blocks = {
          else
            T.truthy(m.name, false, { err: 'Invalid pattern for minimal engine: ' + val.err })
         )
-      for m in blocks.match
-      ],
+        for m in blocks.match
+      ]
+    ),
+  ],
 }

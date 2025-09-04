@@ -4,20 +4,56 @@ const fs = require('fs');
 const path = require('path');
 
 const listJsonnetTestFiles = () => {
-  const dir = path.join(__dirname, '..', 'tests');
+  // Consolidated tests live under `test/` alongside this spec
+  const dir = __dirname;
   const files = fs.readdirSync(dir);
   return files
     .filter((f) => /_test\.jsonnet$/.test(f))
     .map((f) => path.join(dir, f));
 };
 
-const loadCasesFromFile = (file) => {
+// Normalize Jsonnet outputs into an array of suites: [{ name, cases: [] }]
+const loadSuitesFromFile = (file) => {
   const out = execFileSync('jsonnet', [file], { encoding: 'utf8' });
   const j = JSON.parse(out);
-  if (Array.isArray(j)) return j; // suite returns a raw list of cases
-  if (j && Array.isArray(j.tests)) return j.tests; // suite object with tests
-  if (j && Array.isArray(j.cases)) return j.cases; // fallback shape
-  return [];
+
+  const toCases = (obj) => {
+    if (!obj) return [];
+    if (Array.isArray(obj.cases)) return obj.cases;
+    return [];
+  };
+
+  // Object shape with suites or tests/cases
+  if (j && !Array.isArray(j)) {
+    if (Array.isArray(j.suites)) {
+      return j.suites.map((s) => ({ name: s.name || '', cases: toCases(s) }));
+    }
+    const cases = toCases(j);
+    if (cases.length) return [{ name: j.name || '', cases }];
+    // No known shape; treat as empty
+    return [{ name: '', cases: [] }];
+  }
+
+  // Array shape: could be array of cases, array of suites, or mixed
+  if (Array.isArray(j)) {
+    const defaultCases = [];
+    const suites = [];
+    for (const item of j) {
+      if (item && Array.isArray(item.cases)) {
+        suites.push({ name: item.name || '', cases: item.cases });
+      } else if (item && typeof item === 'object' && 'pass' in item) {
+        defaultCases.push(item);
+      }
+    }
+    if (suites.length === 0) {
+      // Entire array is a flat list of cases
+      return [{ name: '', cases: j }];
+    }
+    if (defaultCases.length) suites.unshift({ name: '', cases: defaultCases });
+    return suites;
+  }
+
+  return [{ name: '', cases: [] }];
 };
 
 const runPython = () => {
@@ -37,10 +73,7 @@ const summarizeFailure = (t) => {
     }
     const got = typeof t.got === 'string' ? t.got : JSON.stringify(t.got);
     const want = typeof t.want === 'string' ? t.want : JSON.stringify(t.want);
-    if (got && want && (String(got).length + String(want).length) < 120) {
-      return `got=${got} want=${want}`;
-    }
-    return `got=${String(got).slice(0, 80)}...`;
+    return `got=${got} want=${want}`;
   } catch {
     return 'failure';
   }
@@ -67,14 +100,30 @@ const toSpacedWords = (name) => {
 
 const jsonnetFiles = listJsonnetTestFiles().sort();
 for (const file of jsonnetFiles) {
-  const suiteName = toSpacedWords(path.basename(file));
-  const cases = loadCasesFromFile(file);
-  describe(suiteName, () => {
-    for (const t of cases) {
-      it(t.name, () => {
-        if (t.pass) return;
-        assert.fail(summarizeFailure(t));
-      });
+  const fileSuiteName = toSpacedWords(path.basename(file));
+  const suites = loadSuitesFromFile(file);
+  describe(fileSuiteName, () => {
+    // If there is a single unnamed suite, keep flat structure for readability
+    const singleUnnamed = suites.length === 1 && (suites[0].name || '') === '';
+    if (singleUnnamed) {
+      for (const t of suites[0].cases) {
+        it(t.name, () => {
+          if (t.pass) return;
+          assert.fail(summarizeFailure(t));
+        });
+      }
+    } else {
+      for (const s of suites) {
+        const name = (s.name || '').trim() || 'suite';
+        describe(name, () => {
+          for (const t of s.cases) {
+            it(t.name, () => {
+              if (t.pass) return;
+              assert.fail(summarizeFailure(t));
+            });
+          }
+        });
+      }
     }
   });
 }

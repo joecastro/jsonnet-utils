@@ -1,0 +1,32 @@
+local stdEx = import '../../src/stdEx.libsonnet';
+
+stdEx.manifestJsonEx({
+  'files.associations': {
+    '*.libsonnet': 'jsonnet',
+    '*.jsonnet': 'jsonnet',
+  },
+  'files.exclude': {
+    node_modules: true,
+    out: true,
+    dist: true,
+  },
+  'editor.formatOnSave': false,
+  'editor.tabSize': 4,
+  'editor.insertSpaces': true,
+  'eslint.enable': true,
+  'eslint.useFlatConfig': true,
+  'eslint.format.enable': true,
+  'eslint.workingDirectories': [
+    {
+      mode: 'auto',
+    },
+  ],
+  'eslint.validate': [
+    'javascript',
+    'javascriptreact',
+  ],
+  'editor.codeActionsOnSave': {
+    'source.fixAll.eslint': 'explicit',
+  },
+  'eslint.alwaysShowStatus': true,
+})

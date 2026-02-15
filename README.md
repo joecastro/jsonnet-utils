@@ -12,6 +12,7 @@ Features
 
 Project Layout
 --------------
+- `config/`: Jsonnet templates for generated repository config files.
 - `src/regex.libsonnet`: minimal regex engine and validator.
 - `src/stdEx.libsonnet`: stdlib extensions and manifest helpers.
 - `src/packageDefinitions.libsonnet`: package.json DSL and manifest generator.
@@ -31,7 +32,13 @@ Running Tests
 - Preferred: `npm test`
 - Direct: run a specific suite, e.g. `jsonnet test/regex_test.jsonnet`
 
-CI runs `npm test` via GitHub Actions: `.github/workflows/jsonnet-tests.yml`.
+Bootstrapping Repo Config
+-------------------------
+- Generate repo config files from `config/*.jsonnet`: `npm run bootstrap`
+- Check whether generated files are up-to-date: `npm run bootstrap:check`
+- Update dependency/toolchain versions in `config/versions.libsonnet`: `npm run update:versions`
+
+CI validates generated config, runs lint, and runs tests via GitHub Actions: `.github/workflows/jsonnet-tests.yml`.
 
 Usage Examples
 --------------
@@ -48,8 +55,8 @@ Usage Examples
 - Regex matching:
 
   local re = import 'src/regex.libsonnet';
-  re.match('^ab*c$', 'abbbc')  // => true
-  re.validate('a+')             // => { ok: false, err: "Unsupported metacharacter '+'" }
+  re.matchRegex('^ab*c$', 'abbbc')  // => true
+  re.validateRegex('a+')            // => { ok: false, err: "Unsupported metacharacter '+'" }
 
 Notes
 -----

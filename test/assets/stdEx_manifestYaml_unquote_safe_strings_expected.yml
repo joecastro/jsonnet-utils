@@ -1,0 +1,15 @@
+a: hello world
+
+b: "on"
+
+c: "123"
+
+d: actions/checkout@v4
+
+e: "1e3"
+
+f: "line\\nvalue"
+
+g: "name: value"
+
+h: bootstrap:check

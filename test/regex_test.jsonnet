@@ -49,16 +49,16 @@ local blocks = {
   blocks: blocks,
   suites: [
     T.suite('validate',
-      [ T.truthy(v.name, re.validate(v.pattern).ok, re.validate(v.pattern)) for v in blocks.validate if v.expect ]
-      + [ T.falsy(v.name, re.validate(v.pattern).ok, re.validate(v.pattern)) for v in blocks.validate if !v.expect ]
+      [ T.truthy(v.name, re.validateRegex(v.pattern).ok, re.validateRegex(v.pattern)) for v in blocks.validate if v.expect ]
+      + [ T.falsy(v.name, re.validateRegex(v.pattern).ok, re.validateRegex(v.pattern)) for v in blocks.validate if !v.expect ]
     ),
 
     T.suite('match',
       [
-        (local val = re.validate(m.pattern);
+        (local val = re.validateRegex(m.pattern);
          if val.ok then
-           if m.expect then T.truthy(m.name, re.match(m.pattern, m.subject))
-           else T.falsy(m.name, re.match(m.pattern, m.subject))
+           if m.expect then T.truthy(m.name, re.matchRegex(m.pattern, m.subject))
+           else T.falsy(m.name, re.matchRegex(m.pattern, m.subject))
          else
            T.truthy(m.name, false, { err: 'Invalid pattern for minimal engine: ' + val.err })
         )

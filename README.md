@@ -55,8 +55,8 @@ Usage Examples
 - Regex matching:
 
   local re = import 'src/regex.libsonnet';
-  re.match('^ab*c$', 'abbbc')  // => true
-  re.validate('a+')             // => { ok: false, err: "Unsupported metacharacter '+'" }
+  re.matchRegex('^ab*c$', 'abbbc')  // => true
+  re.validateRegex('a+')            // => { ok: false, err: "Unsupported metacharacter '+'" }
 
 Notes
 -----

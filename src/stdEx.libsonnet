@@ -1,11 +1,12 @@
 // Useful functions beyond the standard standard library.
 local re = import './regex.libsonnet';
+local str = import './stringUtils.libsonnet';
 
-local L(s) = std.length(s);
-
-local indexOf(arr, elem) =
-  local find_results = std.find(elem, arr);
-  if L(find_results) == 0 then -1 else find_results[0];
+local L = std.length;
+local indexOf = str.indexOf;
+local containsAny = str.containsAny;
+local charsOf = str.charsOf;
+local firstChar = str.firstChar;
 
 local objectFromArrays(keys, values) = {
   [keys[i]]: values[i]
@@ -16,15 +17,6 @@ local firstNonEmpty(arr, defaultValue=null) =
   local nonEmpty = [x for x in arr if x != null && x != '' && x != [] && x != {}];
   if L(nonEmpty) == 0 then defaultValue else nonEmpty[0];
 
-local containsAny(s, needles) =
-  L([needle for needle in needles if L(std.findSubstr(needle, s)) > 0]) > 0;
-
-local charsOf(s) =
-  if L(s) == 0 then []
-  else [std.substr(s, i, 1) for i in std.range(0, L(s) - 1)];
-
-local firstChar(s) = if L(s) == 0 then '' else std.substr(s, 0, 1);
-
 local isStringBooleanLike(s) =
   local boolean_like_strings = [
     'y', 'yes', 'n', 'no',
@@ -33,23 +25,6 @@ local isStringBooleanLike(s) =
     'null', '~',
   ];
   indexOf(boolean_like_strings, std.asciiLower(s)) != -1;
-
-local splitAny(s, delimiters) =
-  assert std.isString(s);
-  assert std.isArray(delimiters);
-  if L(s) == 0 then []
-  else
-    local delimiterSet = { [d]: true for d in delimiters if d != '' };
-    local addPiece(parts, piece) = if piece == '' then parts else parts + [piece];
-    local loop(i, current, parts) =
-      if i >= L(s) then addPiece(parts, current)
-      else
-        local ch = std.substr(s, i, 1);
-        if std.objectHas(delimiterSet, ch) then
-          loop(i + 1, '', addPiece(parts, current))
-        else
-          loop(i + 1, current + ch, parts);
-    loop(0, '', []);
 
 // Copied from jsonnet std library. Added optional formatting and key ordering params.
 local default_json_key_order = [
@@ -141,24 +116,6 @@ local manifestProperties(value, key_sort_func=null) =
   local keys = std.objectFields(value);
   local ordered = if key_sort_func == null then std.sort(keys) else std.sort(keys, key_sort_func);
   std.join('\n', ['%s=%s' % [k, propertyValueOf(value[k])] for k in ordered]);
-
-local capitalizeWord(w) =
-  if L(w) == 0 then '' else
-    std.asciiUpper(w[0:1]) + std.asciiLower(w[1:]);
-
-local splitWords(s) =
-  std.split(std.strReplace(std.strReplace(s, '-', ' '), '_', ' '), ' ');
-
-local pascalCase(s) =
-  std.join('', [capitalizeWord(w) for w in splitWords(s)]);
-
-local camelCase(s) =
-  local words = splitWords(s);
-  if L(words) == 0 then ''
-  else std.asciiLower(words[0]) + std.join('', [capitalizeWord(w) for w in words[1:]]);
-
-local titleCase(s) =
-  std.join(' ', [capitalizeWord(w) for w in std.split(s, ' ')]);
 
 // Conservative "safe to unquote" check for YAML plain scalars.
 // We only allow simple, letter-starting values that avoid YAML-ambiguous tokens
@@ -310,18 +267,11 @@ local manifestYamlWithRunBlocks(
   then std.join(newline, reorder_top_level_lines)
   else std.join(top_level_newline, reorder_top_level_lines);
 
-{
+str + re + {
   manifestProperties: manifestProperties,
   manifestJson: manifestJsonEx,
   manifestJsonEx: manifestJsonEx,
   manifestYamlWithRunBlocks: manifestYamlWithRunBlocks,
-  pascalCase: pascalCase,
-  camelCase: camelCase,
-  titleCase: titleCase,
-  indexOf: indexOf,
   firstNonEmpty: firstNonEmpty,
-  splitAny: splitAny,
   objectFromArrays: objectFromArrays,
-  matchRegex: re.match,
-  validateRegex: re.validate,
 }

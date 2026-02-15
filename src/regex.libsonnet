@@ -1,13 +1,8 @@
+local str = import './stringUtils.libsonnet';
 local L(s) = std.length(s);
-
-local containsAny(s, chars) = std.any([std.member(s, c) for c in chars]);
-
-// startsWith at arbitrary position, via findSubstr
-local startsWithAt(s, si, needle) =
-  if si < 0 || si > L(s) then false
-  else std.startsWith(s[si:], needle);
-
-local ch(s, i) = if i < L(s) then std.substr(s, i, 1);
+local containsAny(s, needles) = str.containsAny(s, needles);
+local startsWithAt(s, si, needle) = str.startsWithAt(s, si, needle);
+local ch(s, i) = str.ch(s, i);
 
 // Simple regex engine supporting a small subset of features.
 
@@ -25,12 +20,12 @@ local isUnsupportedMeta(c) = c == '+' || c == '{' || c == '}' || c == '|';
 // Find next ']' at or after index i (no nesting inside char class)
 local findClassEnd(p, i) =
   local rel = std.findSubstr(']', p[i:]);
-  if std.length(rel) == 0 then -1 else i + rel[0];
+  if L(rel) == 0 then -1 else i + rel[0];
 
 // Find next ')' at or after index i (no nested parens supported for lookahead)
 local findParenClose(p, i) =
   local rel = std.findSubstr(')', p[i:]);
-  if std.length(rel) == 0 then -1 else i + rel[0];
+  if L(rel) == 0 then -1 else i + rel[0];
 
 /* ---------- Parse primitives ---------- */
 // Character class: returns { ok, end, test(c) }
@@ -244,6 +239,6 @@ local assertValid(pattern) =
 local match(pattern, s) = assertValid(pattern) && matchNoValidate(pattern, s);
 
 {
-  match:: match,
-  validate:: validate,
+  matchRegex:: match,
+  validateRegex:: validate,
 }

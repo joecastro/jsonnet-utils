@@ -9,12 +9,30 @@ local indexOf(arr, elem) =
 
 local objectFromArrays(keys, values) = {
   [keys[i]]: values[i]
-  for i in std.range(0, std.length(keys) - 1)
+  for i in std.range(0, L(keys) - 1)
 };
 
 local firstNonEmpty(arr, defaultValue=null) =
   local nonEmpty = [x for x in arr if x != null && x != '' && x != [] && x != {}];
   if L(nonEmpty) == 0 then defaultValue else nonEmpty[0];
+
+local containsAny(s, needles) =
+  L([needle for needle in needles if L(std.findSubstr(needle, s)) > 0]) > 0;
+
+local charsOf(s) =
+  if L(s) == 0 then []
+  else [std.substr(s, i, 1) for i in std.range(0, L(s) - 1)];
+
+local firstChar(s) = if L(s) == 0 then '' else std.substr(s, 0, 1);
+
+local isStringBooleanLike(s) =
+  local boolean_like_strings = [
+    'y', 'yes', 'n', 'no',
+    'true', 'false',
+    'on', 'off',
+    'null', '~',
+  ];
+  indexOf(boolean_like_strings, std.asciiLower(s)) != -1;
 
 local splitAny(s, delimiters) =
   assert std.isString(s);
@@ -142,69 +160,112 @@ local camelCase(s) =
 local titleCase(s) =
   std.join(' ', [capitalizeWord(w) for w in std.split(s, ' ')]);
 
+// Conservative "safe to unquote" check for YAML plain scalars.
+// We only allow simple, letter-starting values that avoid YAML-ambiguous tokens
+// and separator/comment syntax, so dequoting does not change parse semantics.
+local yamlIsSafePlainScalar(s) =
+  local ascii_letters = charsOf('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ');
+  local ascii_digits = charsOf('0123456789');
+  local yaml_safe_plain_chars = charsOf(' -_./@');
+  local removeAllowedChars(input) =
+    std.foldl(
+      function(acc, ch) std.strReplace(acc, ch, ''),
+      ascii_letters + ascii_digits + yaml_safe_plain_chars,
+      input
+    );
+  containsAny(firstChar(s), ascii_letters) &&
+  !std.endsWith(s, ' ') &&
+  !isStringBooleanLike(s) &&
+  L(removeAllowedChars(s)) == 0;
+
+local yamlDecodeDoubleQuotedScalar(value) =
+  assert std.isString(value);
+  local backslash_token = '__YAML_ESCAPED_BACKSLASH__';
+  local escaped_backslashes = std.strReplace(value, '\\\\', backslash_token);
+  local unescaped_quotes = std.strReplace(escaped_backslashes, '\\"', '"');
+  local unescaped_newlines = std.strReplace(unescaped_quotes, '\\n', '\n');
+  local restored_backslashes = std.strReplace(unescaped_newlines, backslash_token, '\\');
+  restored_backslashes;
+
+local yamlParseQuotedScalarLine(line) =
+  local split_on_quoted = std.split(line, ': "');
+  local has_quoted_value = L(split_on_quoted) > 1 && std.endsWith(line, '"');
+  if !has_quoted_value then null else
+    local prefix = split_on_quoted[0];
+    local value_with_suffix = std.join(
+      ': "',
+      std.slice(split_on_quoted, 1, L(split_on_quoted), 1)
+    );
+    local quoted_value = std.substr(value_with_suffix, 0, L(value_with_suffix) - 1);
+    local key_tokens = [token for token in std.split(prefix, ' ') if token != ''];
+    local key = key_tokens[L(key_tokens) - 1];
+    local indent = std.substr(prefix, 0, L(prefix) - L(key));
+    {
+      prefix: prefix,
+      key: key,
+      indent: indent,
+      quoted_value: quoted_value,
+    };
+
+local yamlToRunBlockLines(parsed_line) =
+  local decoded = yamlDecodeDoubleQuotedScalar(parsed_line.quoted_value);
+  local list_item_suffix = '- ';
+  local block_indent =
+    if std.endsWith(parsed_line.indent, list_item_suffix)
+    then std.substr(parsed_line.indent, 0, L(parsed_line.indent) - L(list_item_suffix)) + '  '
+    else parsed_line.indent;
+  [parsed_line.indent + parsed_line.key + ': |'] + [
+    block_indent + '  ' + script_line
+    for script_line in std.split(decoded, '\n')
+  ];
+
+local yamlIsTopLevelHeader(line) =
+  L(line) > 0 &&
+  !std.startsWith(line, ' ') &&
+  containsAny(line, [':']);
+
+local yamlNormalizeKeyQuotes(line) =
+  // YAML 1.1 treats "on" as a boolean-like token, so Jsonnet manifests it quoted.
+  // Github Actions expects the literal key `on`, so we normalize that key for consistency/readability.
+  if std.startsWith(line, '"on":')
+  then 'on:' + std.substr(line, 5, L(line) - 5)
+  else line;
+
+// YAML manifest with targeted post-processing:
+// - normalize top-level `"on"` key to `on`
+// - convert encoded multiline quoted scalars into YAML `|` blocks (for run scripts)
+// - optionally dequote conservative, safe single-line string scalars
+// - sort top-level sections via `key_sort_func` and join sections with `top_level_newline`
 local manifestYamlWithRunBlocks(
   value,
   newline='\n',
   top_level_newline='\n\n',
-  key_sort_func=defaultYamlTopLevelKeySorter
+  key_sort_func=defaultYamlTopLevelKeySorter,
+  unquote_safe_strings=true
 ) =
   local raw = std.manifestYamlDoc(value, quote_keys=false);
   local lines = std.split(raw, '\n');
   local flatten(arrays) = std.foldl(function(acc, x) acc + x, arrays, []);
-  local isTopLevelHeader(line) =
-    std.length(line) > 0 &&
-    std.substr(line, 0, 1) != ' ' &&
-    std.length(std.findSubstr(':', line)) > 0;
-  local multiline_threshold = 1;
-  local normalize_yaml_key_quotes(line) =
-    // YAML 1.1 treats "on" as a boolean-like token, so Jsonnet manifests it quoted.
-    // Github Actions expects the literal key `on`, so we normalize that key for consistency/readability.
-    if std.startsWith(line, '"on":')
-    then 'on:' + std.substr(line, 5, std.length(line) - 5)
-    else line;
   local transform_line(line) =
-    local normalized_line = normalize_yaml_key_quotes(line);
-    local split_on_quoted = std.split(normalized_line, ': "');
-    local has_quoted_value = std.length(split_on_quoted) > 1 && std.endsWith(normalized_line, '"');
-    if has_quoted_value && std.length(std.split(line, '\\n')) > multiline_threshold then
-      local prefix_part = split_on_quoted[0];
-      local key_tokens = [token for token in std.split(prefix_part, ' ') if token != ''];
-      local key = key_tokens[std.length(key_tokens) - 1];
-      local indent = std.substr(prefix_part, 0, std.length(prefix_part) - std.length(key));
-      local value_with_suffix = std.join(
-        ': "',
-        std.slice(split_on_quoted, 1, std.length(split_on_quoted), 1)
-      );
-      local value = std.substr(value_with_suffix, 0, std.length(value_with_suffix) - 1);
-      local unescaped = std.strReplace(
-        std.strReplace(
-          std.strReplace(value, '\\\\', '\\'),
-          '\\"',
-          '"'
-        ),
-        '\\n',
-        '\n'
-      );
-      local script_lines = std.split(unescaped, '\n');
-      local list_item_suffix = '- ';
-      local is_list_item = std.endsWith(indent, list_item_suffix);
-      local block_indent =
-        if is_list_item
-        then std.substr(indent, 0, std.length(indent) - std.length(list_item_suffix)) + '  '
-        else indent;
-      [indent + key + ': |'] + [
-        block_indent + '  ' + script_line
-        for script_line in script_lines
-      ]
+    local normalized_line = yamlNormalizeKeyQuotes(line);
+    local parsed_line = yamlParseQuotedScalarLine(normalized_line);
+    local decoded_quoted_value =
+      if parsed_line == null then '' else yamlDecodeDoubleQuotedScalar(parsed_line.quoted_value);
+    if parsed_line == null then
+      [normalized_line]
+    else if containsAny(decoded_quoted_value, ['\n']) then
+      yamlToRunBlockLines(parsed_line)
     else
-      [normalized_line];
+      if unquote_safe_strings && yamlIsSafePlainScalar(parsed_line.quoted_value)
+      then [parsed_line.prefix + ': ' + parsed_line.quoted_value]
+      else [normalized_line];
   local rendered_lines = flatten([transform_line(line) for line in lines]);
-  local is_top_level_object = std.length(rendered_lines) > 0 && isTopLevelHeader(rendered_lines[0]);
+  local is_top_level_object = L(rendered_lines) > 0 && yamlIsTopLevelHeader(rendered_lines[0]);
   local grouped_lines =
     if !is_top_level_object then null else
       std.foldl(
         function(acc, line)
-          if isTopLevelHeader(line) then
+          if yamlIsTopLevelHeader(line) then
             acc {
               order: acc.order + [line],
               groups: acc.groups + { [line]: [line] },

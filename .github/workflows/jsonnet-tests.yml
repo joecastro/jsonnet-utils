@@ -1,4 +1,4 @@
-name: "Jsonnet Tests"
+name: Jsonnet Tests
 
 on:
   pull_request: {}
@@ -6,27 +6,27 @@ on:
 
 jobs:
   test:
-    name: "Run tests"
+    name: Run tests
     permissions:
-      contents: "read"
-      id-token: "write"
-    runs-on: "ubuntu-22.04"
+      contents: read
+      id-token: write
+    runs-on: ubuntu-22.04
     steps:
-    - name: "Checkout"
-      uses: "actions/checkout@v4"
+    - name: Checkout
+      uses: actions/checkout@v4
       with:
         fetch-depth: 0
-    - name: "Set up Node"
-      uses: "actions/setup-node@v4"
+    - name: Set up Node
+      uses: actions/setup-node@v4
       with:
         node-version: "20"
-    - id: "jsonnet-cache"
-      name: "Restore jsonnet cache"
-      uses: "actions/cache@v4"
+    - id: jsonnet-cache
+      name: Restore jsonnet cache
+      uses: actions/cache@v4
       with:
         key: "jsonnet-${{ runner.os }}-v0.21.0"
         path: "~/.cache/jsonnet"
-    - name: "Build jsonnet"
+    - name: Build jsonnet
       run: |
         echo 'Build jsonnet'
         set -euo pipefail
@@ -49,12 +49,12 @@ jobs:
         fi
         
         sudo cp "${BIN}" /usr/local/bin/jsonnet
-      shell: "bash"
-    - name: "Install deps"
-      run: "npm ci"
-    - name: "Check generated config drift"
+      shell: bash
+    - name: Install deps
+      run: npm ci
+    - name: Check generated config drift
       run: "npm run bootstrap:check"
-    - name: "Lint"
-      run: "npm run lint"
+    - name: Lint
+      run: npm run lint
     - name: "Run tests (Mocha)"
-      run: "npm test"
+      run: npm test

@@ -58,4 +58,23 @@ T.suite('stdEx', [
       ),
       trimTrailingNewline(importstr './assets/stdEx_manifestYaml_custom_separator_expected.yml')
     ),
+    T.equal(
+      'manifestYamlWithRunBlocks can unquote safe strings',
+      stdEx.manifestYamlWithRunBlocks(
+        {
+          a: 'hello world',
+          b: 'on',
+          c: '123',
+          d: 'actions/checkout@v4',
+          e: '1e3',
+          f: 'line\\nvalue',
+          g: 'name: value',
+        },
+        '\n',
+        '\n\n',
+        function(k) k,
+        true
+      ),
+      trimTrailingNewline(importstr './assets/stdEx_manifestYaml_unquote_safe_strings_expected.yml')
+    ),
 ])

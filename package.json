@@ -18,7 +18,10 @@
     "update:versions": "python3 scripts/update_versions.py"
   },
   "devDependencies": {
+    "@eslint/eslintrc": "^3.3.3",
+    "@eslint/js": "^10.0.1",
     "eslint": "^10.0.0",
+    "globals": "^17.3.0",
     "mocha": "^11.7.5"
   },
   "description": "Reusable Jsonnet helpers and utilities",

@@ -1,8 +1,8 @@
-name: "Example"
+name: Example
 
 on:
   push: {}
 
 jobs:
   test:
-    runs-on: "ubuntu-latest"
+    runs-on: ubuntu-latest

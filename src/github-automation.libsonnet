@@ -114,6 +114,13 @@ local triggers = {
 
 local Workflow(name, triggers, jobs, concurrency=null) =
   assert std.type(jobs) == 'array' : 'jobs must be an array';
+  local merged_triggers = std.foldl(function(acc, t) acc + t, triggers, {});
+  local trigger_keys = std.objectFields(merged_triggers);
+  local empty_trigger_keys = [k for k in trigger_keys if merged_triggers[k] == {}];
+  local normalized_triggers =
+    if std.length(trigger_keys) > 0 && std.length(empty_trigger_keys) == std.length(trigger_keys)
+    then empty_trigger_keys
+    else merged_triggers;
   local jobs_by_id = std.foldl(
     function(acc, job) acc + {
       [job.id]: std.prune(job + { id: null }),
@@ -123,7 +130,7 @@ local Workflow(name, triggers, jobs, concurrency=null) =
   );
   {
     name: name,
-    on: std.foldl(function(acc, t) acc + t, triggers, {}),
+    on: normalized_triggers,
     jobs: jobs_by_id,
     [if concurrency != null then 'concurrency']: concurrency,
   };

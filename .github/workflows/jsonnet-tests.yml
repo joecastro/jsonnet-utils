@@ -1,8 +1,8 @@
 name: Jsonnet Tests
 
 on:
-  pull_request: {}
-  push: {}
+- pull_request
+- push
 
 jobs:
   test:
@@ -53,8 +53,8 @@ jobs:
     - name: Install deps
       run: npm ci
     - name: Check generated config drift
-      run: "npm run bootstrap:check"
+      run: npm run bootstrap:check
     - name: Lint
       run: npm run lint
-    - name: "Run tests (Mocha)"
+    - name: Run tests (Mocha)
       run: npm test

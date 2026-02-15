@@ -166,7 +166,7 @@ local titleCase(s) =
 local yamlIsSafePlainScalar(s) =
   local ascii_letters = charsOf('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ');
   local ascii_digits = charsOf('0123456789');
-  local yaml_safe_plain_chars = charsOf(' -_./@');
+  local yaml_safe_plain_chars = charsOf(' -_./@():'); // ':', but only if not a property delimiter (': ')
   local removeAllowedChars(input) =
     std.foldl(
       function(acc, ch) std.strReplace(acc, ch, ''),
@@ -174,6 +174,7 @@ local yamlIsSafePlainScalar(s) =
       input
     );
   containsAny(firstChar(s), ascii_letters) &&
+  !containsAny(s, [': ']) &&
   !std.endsWith(s, ' ') &&
   !isStringBooleanLike(s) &&
   L(removeAllowedChars(s)) == 0;
@@ -203,6 +204,21 @@ local yamlParseQuotedScalarLine(line) =
     {
       prefix: prefix,
       key: key,
+      indent: indent,
+      quoted_value: quoted_value,
+    };
+
+local yamlParseQuotedListItemLine(line) =
+  local split_on_quoted = std.split(line, '- "');
+  local has_quoted_value = L(split_on_quoted) > 1 && std.endsWith(line, '"');
+  if !has_quoted_value then null else
+    local indent = split_on_quoted[0];
+    local value_with_suffix = std.join(
+      '- "',
+      std.slice(split_on_quoted, 1, L(split_on_quoted), 1)
+    );
+    local quoted_value = std.substr(value_with_suffix, 0, L(value_with_suffix) - 1);
+    {
       indent: indent,
       quoted_value: quoted_value,
     };
@@ -249,15 +265,20 @@ local manifestYamlWithRunBlocks(
   local transform_line(line) =
     local normalized_line = yamlNormalizeKeyQuotes(line);
     local parsed_line = yamlParseQuotedScalarLine(normalized_line);
+    local parsed_list_item_line = yamlParseQuotedListItemLine(normalized_line);
     local decoded_quoted_value =
       if parsed_line == null then '' else yamlDecodeDoubleQuotedScalar(parsed_line.quoted_value);
+    local decoded_list_item_quoted_value =
+      if parsed_list_item_line == null then '' else yamlDecodeDoubleQuotedScalar(parsed_list_item_line.quoted_value);
     if parsed_line == null then
-      [normalized_line]
+      if parsed_list_item_line != null && unquote_safe_strings && yamlIsSafePlainScalar(decoded_list_item_quoted_value)
+      then [parsed_list_item_line.indent + '- ' + decoded_list_item_quoted_value]
+      else [normalized_line]
     else if containsAny(decoded_quoted_value, ['\n']) then
       yamlToRunBlockLines(parsed_line)
     else
-      if unquote_safe_strings && yamlIsSafePlainScalar(parsed_line.quoted_value)
-      then [parsed_line.prefix + ': ' + parsed_line.quoted_value]
+      if unquote_safe_strings && yamlIsSafePlainScalar(decoded_quoted_value)
+      then [parsed_line.prefix + ': ' + decoded_quoted_value]
       else [normalized_line];
   local rendered_lines = flatten([transform_line(line) for line in lines]);
   local is_top_level_object = L(rendered_lines) > 0 && yamlIsTopLevelHeader(rendered_lines[0]);

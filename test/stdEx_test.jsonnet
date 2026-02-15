@@ -69,6 +69,7 @@ T.suite('stdEx', [
           e: '1e3',
           f: 'line\\nvalue',
           g: 'name: value',
+          h: 'bootstrap:check',
         },
         '\n',
         '\n\n',

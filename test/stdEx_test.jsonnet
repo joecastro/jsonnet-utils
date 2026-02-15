@@ -1,5 +1,9 @@
 local T = import './test.libsonnet';
 local stdEx = import '../src/stdEx.libsonnet';
+local trimTrailingNewline(s) =
+  if std.endsWith(s, '\n')
+  then std.substr(s, 0, std.length(s) - 1)
+  else s;
 
 local words = 'hello-world_test';
 
@@ -28,6 +32,30 @@ T.suite('stdEx', [
     T.equal(
       'manifestJson simple object',
       stdEx.manifestJson({ a: 1 }),
-      '{\n    "a": 1\n}'
+      trimTrailingNewline(importstr './assets/stdEx_manifestJson_simple_object_expected.json')
+    ),
+    T.equal(
+      'manifestJsonEx defaults prioritize version key',
+      stdEx.manifestJsonEx({ z: 1, version: '1.2.3', a: 2 }),
+      trimTrailingNewline(importstr './assets/stdEx_manifestJsonEx_version_first_expected.json')
+    ),
+    T.equal(
+      'manifestYamlWithRunBlocks orders name/on first with blank lines',
+      stdEx.manifestYamlWithRunBlocks({
+        jobs: { test: { 'runs-on': 'ubuntu-latest' } },
+        name: 'Example',
+        on: { push: {} },
+      }),
+      trimTrailingNewline(importstr './assets/stdEx_manifestYaml_order_expected.yml')
+    ),
+    T.equal(
+      'manifestYamlWithRunBlocks supports custom key sorting/newlines',
+      stdEx.manifestYamlWithRunBlocks(
+        { b: 2, a: 1 },
+        '\n',
+        '\n---\n',
+        function(k) k
+      ),
+      trimTrailingNewline(importstr './assets/stdEx_manifestYaml_custom_separator_expected.yml')
     ),
 ])

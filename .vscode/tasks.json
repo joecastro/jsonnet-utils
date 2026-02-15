@@ -2,36 +2,41 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Tests: Run",
-      "type": "shell",
-      "command": "npm test",
+      "type": "npm",
+      "detail": "Run tests",
       "group": {
-        "kind": "test",
-        "isDefault": true
+        "isDefault": true,
+        "kind": "test"
       },
-      "problemMatcher": []
+      "label": "Tests: Run",
+      "problemMatcher": [
+
+      ],
+      "script": "test"
     },
     {
+      "type": "npm",
+      "detail": "Run ESLint",
       "label": "npm: lint",
-      "type": "npm",
-      "script": "lint",
+      "presentation": {
+        "reveal": "always"
+      },
       "problemMatcher": [
         "$eslint-stylish"
       ],
-      "presentation": {
-        "reveal": "always"
-      }
+      "script": "lint"
     },
     {
-      "label": "npm: lint:fix",
       "type": "npm",
-      "script": "lint:fix",
+      "detail": "Run ESLint with auto-fix",
+      "label": "npm: lint:fix",
+      "presentation": {
+        "reveal": "always"
+      },
       "problemMatcher": [
         "$eslint-stylish"
       ],
-      "presentation": {
-        "reveal": "always"
-      }
+      "script": "lint:fix"
     }
   ]
 }

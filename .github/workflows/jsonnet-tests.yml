@@ -1,29 +1,60 @@
-name: Jsonnet Tests
+name: "Jsonnet Tests"
 
 on:
-  push:
-  pull_request:
+  pull_request: {}
+  push: {}
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: "Run tests"
+    permissions:
+      contents: "read"
+      id-token: "write"
+    runs-on: "ubuntu-22.04"
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install jsonnet
-        run: sudo apt-get update && sudo apt-get install -y jsonnet
-
-      - name: Install deps
-        run: npm ci
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Run tests (Mocha)
-        run: npm test
+    - name: "Checkout"
+      uses: "actions/checkout@v4"
+      with:
+        fetch-depth: 0
+    - name: "Set up Node"
+      uses: "actions/setup-node@v4"
+      with:
+        node-version: "20"
+    - id: "jsonnet-cache"
+      name: "Restore jsonnet cache"
+      uses: "actions/cache@v4"
+      with:
+        key: "jsonnet-${{ runner.os }}-v0.21.0"
+        path: "~/.cache/jsonnet"
+    - name: "Build jsonnet"
+      run: |
+        echo 'Build jsonnet'
+        set -euo pipefail
+        JSONNET_VERSION=0.21.0
+        CACHE_DIR="${HOME}/.cache/jsonnet"
+        TARBALL="${CACHE_DIR}/jsonnet-v${JSONNET_VERSION}.tar.gz"
+        BUILD_DIR="${CACHE_DIR}/jsonnet-v${JSONNET_VERSION}"
+        BIN="${CACHE_DIR}/jsonnet"
+        
+        if [[ ! -x "${BIN}" ]]; then
+          mkdir -p "${CACHE_DIR}"
+          if [[ ! -f "${TARBALL}" ]]; then
+            wget -O "${TARBALL}" "https://github.com/google/jsonnet/releases/download/v${JSONNET_VERSION}/jsonnet-v${JSONNET_VERSION}.tar.gz"
+          fi
+          rm -rf "${BUILD_DIR}"
+          tar -xzf "${TARBALL}" -C "${CACHE_DIR}"
+          cd "${BUILD_DIR}"
+          make
+          cp ./jsonnet "${BIN}"
+        fi
+        
+        sudo cp "${BIN}" /usr/local/bin/jsonnet
+      shell: "bash"
+    - name: "Install deps"
+      run: "npm ci"
+    - name: "Check generated config drift"
+      run: "npm run bootstrap:check"
+    - name: "Lint"
+      run: "npm run lint"
+    - name: "Run tests (Mocha)"
+      run: "npm test"

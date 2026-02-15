@@ -1,5 +1,9 @@
 local T = import './test.libsonnet';
 local pkg = import '../src/packageDefinitions.libsonnet';
+local trimTrailingNewline(s) =
+  if std.endsWith(s, '\n')
+  then std.substr(s, 0, std.length(s) - 1)
+  else s;
 
 // manifestPackageJson ordering
 local obj = {
@@ -21,32 +25,7 @@ local obj = {
   dependencies: { b: '^2.0.0' },
 };
 
-local expected = '{\n' +
-  '    "name": "example",\n' +
-  '    "version": "1.0.0",\n' +
-  '    "private": true,\n' +
-  '    "type": "module",\n' +
-  '    "engines": {\n' +
-  '        "node": ">=18"\n' +
-  '    },\n' +
-  '    "scripts": {\n' +
-  '        "build": "tsc"\n' +
-  '    },\n' +
-  '    "scripts-info": {\n' +
-  '        "build": "Build"\n' +
-  '    },\n' +
-  '    "devDependencies": {\n' +
-  '        "a": "1.0.0"\n' +
-  '    },\n' +
-  '    "dependencies": {\n' +
-  '        "b": "^2.0.0"\n' +
-  '    },\n' +
-  '    "description": "d",\n' +
-  '    "main": "dist/index.js",\n' +
-  '    "homepage": "",\n' +
-  '    "author": "",\n' +
-  '    "license": "UNLICENSED"\n' +
-  '}';
+local expected = trimTrailingNewline(importstr './assets/packageDefinitions_manifestPackageJson_expected.json');
 
 [
   T.equal('manifestPackageJson: sorts keys', pkg.manifestPackageJson(obj), expected),

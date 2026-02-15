@@ -1,0 +1,26 @@
+{
+  "name": "example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "scripts-info": {
+    "build": "Build"
+  },
+  "devDependencies": {
+    "a": "1.0.0"
+  },
+  "dependencies": {
+    "b": "^2.0.0"
+  },
+  "description": "d",
+  "main": "dist/index.js",
+  "homepage": "",
+  "author": "",
+  "license": "UNLICENSED"
+}

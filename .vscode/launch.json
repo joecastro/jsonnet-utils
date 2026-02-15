@@ -4,12 +4,21 @@
     {
       "name": "Run Tests (npm)",
       "type": "node",
+      "autoAttachChildProcesses": true,
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "env": {
+
+      },
+      "internalConsoleOptions": "neverOpen",
       "request": "launch",
-      "runtimeExecutable": "npm",
       "runtimeArgs": [
         "test"
       ],
-      "console": "integratedTerminal"
+      "runtimeExecutable": "npm",
+      "skipFiles": [
+        "<node_internals>/**"
+      ]
     }
   ]
 }

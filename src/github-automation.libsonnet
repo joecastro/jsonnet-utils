@@ -130,7 +130,7 @@ local Workflow(name, triggers, jobs, concurrency=null) =
     };
   local jobs_by_id = std.foldl(
     function(acc, job) acc {
-      [job.id]: std.prune(job { id: null }),
+      [job.id]: job,
     },
     jobs,
     {}
@@ -153,7 +153,7 @@ local Job(
   if_condition=null,
   environment=null
       ) = {
-  id: id,
+  id:: id,
   name: name,
   'runs-on': runs_on,
   steps: steps,
@@ -386,30 +386,161 @@ local githubScriptStep(id, name, script, env=null) =
     env=env
   );
 
-local manifestYaml(value) =
-  local raw = stdEx.manifestYamlWithRunBlocks(value);
+local default_yaml_top_level_key_order = ['name', 'on'];
+local defaultYamlTopLevelKeySorter(key) =
+  local index = stdEx.indexOf(default_yaml_top_level_key_order, key);
+  if index != -1 then '%03d' % index + key else '999' + key;
+
+local normalizeGithubWorkflowYaml(
+  raw,
+  key_sort_func=defaultYamlTopLevelKeySorter,
+  reorder_top_level=true,
+  normalize_on_key=true,
+  normalize_empty_on_events=true
+      ) =
   local normalized = std.foldl(
     function(state, line)
-      local is_top_level = std.length(line) > 0 && !std.startsWith(line, ' ');
-      local is_on_direct_child =
-        state.in_on && std.startsWith(line, '  ') && !std.startsWith(line, '    ');
-      local normalized_line =
-        if is_on_direct_child && std.endsWith(line, ': null')
-        then std.substr(line, 0, std.length(line) - 5)
-        else if is_on_direct_child && std.endsWith(line, ': {}')
-        then std.substr(line, 0, std.length(line) - 3)
+      local normalized_on_key_line =
+        if normalize_on_key && std.startsWith(line, '"on":')
+        then 'on:' + std.substr(line, 5, std.length(line) - 5)
         else line;
+      local is_top_level = std.length(normalized_on_key_line) > 0 && !std.startsWith(normalized_on_key_line, ' ');
+      local is_on_direct_child =
+        normalize_empty_on_events &&
+        state.in_on &&
+        std.startsWith(line, '  ') &&
+        !std.startsWith(line, '    ');
+      local normalized_line =
+        if is_on_direct_child && std.endsWith(normalized_on_key_line, ': null')
+        then std.substr(normalized_on_key_line, 0, std.length(normalized_on_key_line) - 5)
+        else if is_on_direct_child && std.endsWith(normalized_on_key_line, ': {}')
+        then std.substr(normalized_on_key_line, 0, std.length(normalized_on_key_line) - 3)
+        else normalized_on_key_line;
       {
         lines: state.lines + [normalized_line],
-        in_on: if is_top_level then line == 'on:' else state.in_on,
+        in_on:
+          if !normalize_empty_on_events
+          then false
+          else if is_top_level then normalized_line == 'on:' else state.in_on,
       },
     std.split(raw, '\n'),
     { lines: [], in_on: false }
   );
-  std.join('\n', normalized.lines);
+  local rendered_lines = normalized.lines;
+  if !reorder_top_level then
+    std.join('\n', rendered_lines)
+  else
+    local top_level_header_indexes =
+      if std.length(rendered_lines) == 0 then [] else [
+        i
+        for i in std.range(0, std.length(rendered_lines) - 1)
+        if std.length(rendered_lines[i]) > 0 &&
+           !std.startsWith(rendered_lines[i], ' ') &&
+           stdEx.containsAny(rendered_lines[i], [':'])
+      ];
+    local is_top_level_object =
+      std.length(top_level_header_indexes) > 0 &&
+      top_level_header_indexes[0] == 0;
+    local reorder_top_level_lines =
+      if !is_top_level_object then rendered_lines else
+        local section_count = std.length(top_level_header_indexes);
+        local section_indexes = std.range(0, section_count - 1);
+        local section_lines = [
+          std.slice(
+            rendered_lines,
+            top_level_header_indexes[i],
+            if i + 1 < section_count then top_level_header_indexes[i + 1] else std.length(rendered_lines),
+            1
+          )
+          for i in section_indexes
+        ];
+        local key_from_header(header) =
+          local split = std.split(header, ':');
+          split[0];
+        local ordered_section_indexes = std.sort(
+          section_indexes,
+          function(i) key_sort_func(key_from_header(rendered_lines[top_level_header_indexes[i]]))
+        );
+        [std.join('\n', section_lines[i]) for i in ordered_section_indexes];
+    if !is_top_level_object
+    then std.join('\n', reorder_top_level_lines)
+    else std.join('\n\n', reorder_top_level_lines);
+
+local manifest_yaml_profiles = {
+  pretty: {
+    render_mode: 'pretty',
+    unquote_safe_strings: true,
+    reorder_top_level: false,
+  },
+  fast: {
+    render_mode: 'fast',
+    reorder_top_level: true,
+  },
+};
+
+local default_manifest_yaml_options = {
+  profile: 'fast',
+  render_mode: 'fast',
+  unquote_safe_strings: true,
+  reorder_top_level: true,
+  normalize_on_key: true,
+  normalize_empty_on_events: true,
+  key_sort_func: defaultYamlTopLevelKeySorter,
+};
+
+local manifestYamlOptions(options={}) =
+  local provided =
+    if std.type(options) == 'boolean'
+    then { profile: if options then 'fast' else 'pretty' }
+    else options;
+  local profile_name =
+    if std.objectHas(provided, 'profile')
+    then provided.profile
+    else default_manifest_yaml_options.profile;
+  local profile_options =
+    if std.objectHas(manifest_yaml_profiles, profile_name)
+    then manifest_yaml_profiles[profile_name]
+    else error 'Unknown manifestYaml profile: ' + profile_name;
+  default_manifest_yaml_options + profile_options + provided;
+
+local manifestYamlWithOptions(value, options={}) =
+  local opts = manifestYamlOptions(options);
+  local raw =
+    if opts.render_mode == 'fast'
+    then std.manifestYamlDoc(value, quote_keys=false)
+    else stdEx.manifestYamlWithRunBlocks(
+      value,
+      key_sort_func=opts.key_sort_func,
+      unquote_safe_strings=opts.unquote_safe_strings
+    );
+  normalizeGithubWorkflowYaml(
+    raw,
+    key_sort_func=opts.key_sort_func,
+    reorder_top_level=opts.reorder_top_level,
+    normalize_on_key=opts.normalize_on_key,
+    normalize_empty_on_events=opts.normalize_empty_on_events
+  );
+
+local manifestYamlPretty(value, options={}) =
+  manifestYamlWithOptions(value, { profile: 'pretty' } + options);
+
+local manifestYamlFast(value, options={}) =
+  manifestYamlWithOptions(value, { profile: 'fast' } + options);
+
+local manifestYaml(value, options={}, fast=null) =
+  local normalized_options =
+    if fast == null
+    then options
+    else if std.type(options) != 'object'
+    then { profile: if fast then 'fast' else 'pretty' }
+    else options { profile: if fast then 'fast' else 'pretty' };
+  manifestYamlWithOptions(value, normalized_options);
 
 {
   manifestYaml: manifestYaml,
+  manifestYamlPretty: manifestYamlPretty,
+  manifestYamlFast: manifestYamlFast,
+  manifestYamlOptions: manifestYamlOptions,
   expr: expr,
   Step: Step,
   BashShellStep: BashShellStep,

@@ -33,4 +33,4 @@ local workflow = gha.Workflow(
   ]
 );
 
-gha.manifestYaml(workflow)
+gha.manifestYamlPretty(workflow)

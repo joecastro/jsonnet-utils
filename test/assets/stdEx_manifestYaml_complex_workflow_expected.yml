@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  pull_request: {}
+  push:
+    branches:
+    - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Setup
+      uses: actions/setup-node@v4
+      with:
+        cache: npm
+        node-version: "20"
+    - name: Test
+      run: |
+        npm ci
+        npm test
+        npm run lint
+    - name: Args
+      with:
+        args:
+        - bootstrap:check
+        - "name: value"
+        - "123"
+        - actions/checkout@v4
+        - "? weird"
+        - alpha_beta-1

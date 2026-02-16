@@ -22,9 +22,23 @@ local isStringBooleanLike(s) =
     'y', 'yes', 'n', 'no',
     'true', 'false',
     'on', 'off',
-    'null', '~',
   ];
   indexOf(boolean_like_strings, std.asciiLower(s)) != -1;
+
+local isStringNullLike(s) =
+  local null_like_strings = ['null', '~'];
+  indexOf(null_like_strings, std.asciiLower(s)) != -1;
+
+local isStringNumberLike(s) =
+  local ascii_digits = charsOf('0123456789');
+  local second = if L(s) > 1 then std.substr(s, 1, 1) else '';
+  containsAny(firstChar(s), ascii_digits) ||
+  (containsAny(firstChar(s), charsOf('+-.')) && containsAny(second, ascii_digits));
+
+local isYamlImplicitScalarLike(s) =
+  isStringBooleanLike(s) ||
+  isStringNullLike(s) ||
+  isStringNumberLike(s);
 
 // Copied from jsonnet std library. Added optional formatting and key ordering params.
 local default_json_key_order = [
@@ -118,23 +132,13 @@ local manifestProperties(value, key_sort_func=null) =
   std.join('\n', ['%s=%s' % [k, propertyValueOf(value[k])] for k in ordered]);
 
 // Conservative "safe to unquote" check for YAML plain scalars.
-// We only allow simple, letter-starting values that avoid YAML-ambiguous tokens
-// and separator/comment syntax, so dequoting does not change parse semantics.
+// We avoid YAML-significant starts/separators and common implicit scalar values.
 local yamlIsSafePlainScalar(s) =
-  local ascii_letters = charsOf('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ');
-  local ascii_digits = charsOf('0123456789');
-  local yaml_safe_plain_chars = charsOf(' -_./@():'); // ':', but only if not a property delimiter (': ')
-  local removeAllowedChars(input) =
-    std.foldl(
-      function(acc, ch) std.strReplace(acc, ch, ''),
-      ascii_letters + ascii_digits + yaml_safe_plain_chars,
-      input
-    );
-  containsAny(firstChar(s), ascii_letters) &&
-  !containsAny(s, [': ']) &&
-  !std.endsWith(s, ' ') &&
-  !isStringBooleanLike(s) &&
-  L(removeAllowedChars(s)) == 0;
+  !re.matchRegex('^[,@>]', s) &&
+  !isYamlImplicitScalarLike(s) &&
+  !re.matchRegex('^[-?:] ', s) &&
+  !re.matchRegex(': | #|\t|\r', s) &&
+  re.matchRegex('^[\\w\\d -./@():;,+<=>!?$^~]*[^ :]$', s);
 
 local yamlDecodeDoubleQuotedScalar(value) =
   assert std.isString(value);

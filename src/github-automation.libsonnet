@@ -221,7 +221,7 @@ local BashShellStep(
 local CompositeAction(name, description, inputs, steps) = {
   name: name,
   description: description,
-  inputs: inputsById(inputs),
+  [if std.length(inputs) > 0 then 'inputs']: inputsById(inputs),
   runs: {
     using: 'composite',
     steps: steps,

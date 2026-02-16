@@ -21,6 +21,19 @@ local blocks = {
     { name: "validate: lookbehind non-fixed (both invalid)", pattern: '(?<=a*b)', expect: false, py_expect: false },
     { name: "validate: lookbehind at end",               pattern: '^first.*(?<!:third)$', expect: true, py_expect: true },
     { name: "validate: valid simple",                    pattern: 'abc',      expect: true,  py_expect: true },
+    { name: "validate: alternation top-level literal",   pattern: 'cat|dog',  expect: true,  py_expect: true },
+    { name: "validate: alternation with lookbehind",     pattern: '(?<=x)foo|bar', expect: true, py_expect: true },
+    { name: "validate: alternation empty branch",        pattern: 'a|',       expect: false, py_expect: true },
+    { name: "validate: alternation overlapping starts",  pattern: 'cat|cow',  expect: false, py_expect: true },
+    { name: "validate: alternation optional start",      pattern: 'a?|bc',    expect: false, py_expect: true },
+    { name: "validate: alternation wildcard start",      pattern: '.a|bc',    expect: false, py_expect: true },
+    { name: "validate: alternation negated class start", pattern: '[^ab]c|de', expect: false, py_expect: true },
+    { name: "validate: escape digit token",              pattern: '^\\d\\d$', expect: true, py_expect: true },
+    { name: "validate: escape word token",               pattern: '^\\w\\w$', expect: true, py_expect: true },
+    { name: "validate: unsupported escape",              pattern: '^\\s+$',   expect: false, py_expect: true },
+    { name: "validate: class with digit token",          pattern: '^[\\d][\\d]$', expect: true, py_expect: true },
+    { name: "validate: class with word token",           pattern: '^[\\w][\\w]$', expect: true, py_expect: true },
+    { name: "validate: class unsupported escape",        pattern: '^[\\q]$', expect: false, py_expect: false },
   ],
   match: [
     { name: 'match: simple contains',          pattern: 'abc',      subject: 'xxabcy', expect: true },
@@ -41,7 +54,15 @@ local blocks = {
     { name: 'match: (?<=) find preceded',      pattern: '(?<=foo)bar',          subject: 'xxfoobar', expect: true },
     { name: 'match: negative lookbehind excludes suffix', pattern: '^first.*(?<!:third)$', subject: 'first:second', expect: true },
     { name: 'match: negative lookbehind matches forbidden suffix', pattern: '^first.*(?<!:third)$',  subject: 'first:second:third',  expect: false },
-    { name: 'match: negative lookbehind at end', pattern: '^first:second:', subject: 'first:second:third', expect: true }
+    { name: 'match: negative lookbehind at end', pattern: '^first:second:', subject: 'first:second:third', expect: true },
+    { name: 'match: alternation literal branch', pattern: 'cat|dog', subject: 'xxdog', expect: true },
+    { name: 'match: alternation no branch match', pattern: 'cat|dog', subject: 'xxpig', expect: false },
+    { name: 'match: alternation with lookbehind branch', pattern: '(?<=x)foo|bar', subject: 'zxfoo', expect: true },
+    { name: 'match: digit escape token', pattern: '^\\d\\d$', subject: '42', expect: true },
+    { name: 'match: digit escape token false', pattern: '^\\d\\d$', subject: '4a', expect: false },
+    { name: 'match: word escape token underscore', pattern: '^\\w\\w$', subject: 'a_', expect: true },
+    { name: 'match: class digit token', pattern: '^[\\d][\\d]$', subject: '09', expect: true },
+    { name: 'match: class word token', pattern: '^[\\w][\\w]$', subject: '_Z', expect: true }
   ],
 };
 

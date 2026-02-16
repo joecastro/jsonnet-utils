@@ -1,0 +1,14 @@
+jobs:
+  demo:
+    steps:
+    - name: "Echo"
+      run: |
+        echo hello
+        echo world
+
+labels:
+- "alpha"
+- "beta"
+- "123"
+
+name: "Quoted Mode"

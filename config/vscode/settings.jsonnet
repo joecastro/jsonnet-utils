@@ -29,4 +29,5 @@ stdEx.manifestJsonEx({
     'source.fixAll.eslint': 'explicit',
   },
   'eslint.alwaysShowStatus': true,
+  'peacock.color': '#61dafb',
 })

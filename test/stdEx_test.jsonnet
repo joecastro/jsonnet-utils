@@ -78,4 +78,68 @@ T.suite('stdEx', [
       ),
       trimTrailingNewline(importstr './assets/stdEx_manifestYaml_unquote_safe_strings_expected.yml')
     ),
+    T.equal(
+      'manifestYamlWithRunBlocks handles complex workflow rendering',
+      stdEx.manifestYamlWithRunBlocks({
+        jobs: {
+          build: {
+            'runs-on': 'ubuntu-latest',
+            steps: [
+              {
+                name: 'Setup',
+                uses: 'actions/setup-node@v4',
+                with: {
+                  'node-version': '20',
+                  cache: 'npm',
+                },
+              },
+              {
+                name: 'Test',
+                run: 'npm ci\nnpm test\nnpm run lint',
+              },
+              {
+                name: 'Args',
+                with: {
+                  args: [
+                    'bootstrap:check',
+                    'name: value',
+                    '123',
+                    'actions/checkout@v4',
+                    '? weird',
+                    'alpha_beta-1',
+                  ],
+                },
+              },
+            ],
+          },
+        },
+        name: 'CI',
+        on: { pull_request: {}, push: { branches: ['main'] } },
+      }),
+      trimTrailingNewline(importstr './assets/stdEx_manifestYaml_complex_workflow_expected.yml')
+    ),
+    T.equal(
+      'manifestYamlWithRunBlocks keeps scalar quotes when unquote is disabled',
+      stdEx.manifestYamlWithRunBlocks(
+        {
+          jobs: {
+            demo: {
+              steps: [
+                {
+                  name: 'Echo',
+                  run: 'echo hello\necho world',
+                },
+              ],
+            },
+          },
+          labels: ['alpha', 'beta', '123'],
+          name: 'Quoted Mode',
+        },
+        '\n',
+        '\n\n',
+        function(k) k,
+        false
+      ),
+      trimTrailingNewline(importstr './assets/stdEx_manifestYaml_unquote_disabled_expected.yml')
+    ),
 ])

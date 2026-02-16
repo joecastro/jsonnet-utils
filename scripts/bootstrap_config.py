@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,10 @@ RENDER_TARGETS: dict[str, str] = {
     'config/vscode/settings.jsonnet': '.vscode/settings.json',
     'config/vscode/tasks.jsonnet': '.vscode/tasks.json',
     'config/package.jsonnet': 'package.json',
+}
+
+SETTINGS_CHECK_IGNORE_KEYS = {
+    '.vscode/settings.json': {'workbench.colorCustomizations'},
 }
 
 
@@ -41,6 +46,24 @@ def write_if_changed(path: Path, content: str) -> bool:
     return True
 
 
+def normalized_for_check(destination: str, content: str) -> str:
+    ignore_keys = SETTINGS_CHECK_IGNORE_KEYS.get(destination)
+    if not ignore_keys:
+        return content
+
+    try:
+        parsed = json.loads(content) if content.strip() else {}
+    except json.JSONDecodeError:
+        # Keep original behavior: invalid JSON should still fail the check.
+        return content
+
+    if not isinstance(parsed, dict):
+        return content
+
+    normalized = {k: v for k, v in parsed.items() if k not in ignore_keys}
+    return json.dumps(normalized, sort_keys=True, separators=(',', ':'))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description='Bootstrap repo configuration from Jsonnet templates')
     parser.add_argument('--check', action='store_true', help='Validate generated files are up-to-date without modifying files')
@@ -54,7 +77,7 @@ def main() -> int:
 
         if args.check:
             current = destination_path.read_text(encoding='utf-8') if destination_path.exists() else ''
-            if current != rendered:
+            if normalized_for_check(destination, current) != normalized_for_check(destination, rendered):
                 changed.append(destination)
             continue
 

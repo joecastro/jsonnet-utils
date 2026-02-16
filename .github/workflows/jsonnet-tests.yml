@@ -25,7 +25,7 @@ jobs:
       uses: actions/cache@v4
       with:
         key: "jsonnet-${{ runner.os }}-v0.21.0"
-        path: "~/.cache/jsonnet"
+        path: ~/.cache/jsonnet
     - name: Build jsonnet
       run: |
         echo 'Build jsonnet'

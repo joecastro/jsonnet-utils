@@ -2,7 +2,7 @@ local str = import './stringUtils.libsonnet';
 local L(s) = std.length(s);
 local containsAny(s, needles) = str.containsAny(s, needles);
 local startsWithAt(s, si, needle) = str.startsWithAt(s, si, needle);
-local ch(s, i) = str.ch(s, i);
+local ch(s, i) = s[i];
 
 // Simple regex engine supporting a small subset of features.
 
@@ -381,7 +381,7 @@ local validate(pattern) =
           else if signaturesOverlap(sigs[i], sigs[j]) then true
           else hasOverlap(i, j + 1);
         if hasOverlap(0, 1) then
-          { ok: false, err: "Alternation branches have overlapping starting characters" }
+          { ok: false, err: 'Alternation branches have overlapping starting characters' }
         else
           { ok: true, err: '' };
 

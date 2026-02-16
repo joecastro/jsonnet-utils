@@ -3,10 +3,13 @@ local re = import './regex.libsonnet';
 local str = import './stringUtils.libsonnet';
 
 local L = std.length;
-local indexOf = str.indexOf;
 local containsAny = str.containsAny;
-local charsOf = str.charsOf;
 local firstChar = str.firstChar;
+
+local indexOf(arr, elem) =
+  assert std.type(arr) == 'array' : 'indexOf expects first argument to be an array';
+  local find_results = std.find(elem, arr);
+  if L(find_results) == 0 then -1 else find_results[0];
 
 local objectFromArrays(keys, values) = {
   [keys[i]]: values[i]
@@ -19,26 +22,37 @@ local firstNonEmpty(arr, defaultValue=null) =
 
 local isStringBooleanLike(s) =
   local boolean_like_strings = [
-    'y', 'yes', 'n', 'no',
-    'true', 'false',
-    'on', 'off',
+    'y',
+    'yes',
+    'n',
+    'no',
+    'true',
+    'false',
+    'on',
+    'off',
   ];
-  indexOf(boolean_like_strings, std.asciiLower(s)) != -1;
+  indexOf(boolean_like_strings, s) != -1;
 
 local isStringNullLike(s) =
   local null_like_strings = ['null', '~'];
-  indexOf(null_like_strings, std.asciiLower(s)) != -1;
+  indexOf(null_like_strings, s) != -1;
 
 local isStringNumberLike(s) =
-  local ascii_digits = charsOf('0123456789');
-  local second = if L(s) > 1 then std.substr(s, 1, 1) else '';
-  containsAny(firstChar(s), ascii_digits) ||
-  (containsAny(firstChar(s), charsOf('+-.')) && containsAny(second, ascii_digits));
+  local isCharIn(haystack, c) = L(std.findSubstr(c, haystack)) > 0;
+  local second = if L(s) > 1 then s[1] else '';
+  isCharIn('0123456789', firstChar(s)) ||
+  (isCharIn('+-.', firstChar(s)) && isCharIn('0123456789', second));
 
 local isYamlImplicitScalarLike(s) =
   isStringBooleanLike(s) ||
   isStringNullLike(s) ||
   isStringNumberLike(s);
+
+local findFirstSubstr(needle, haystack) =
+  local hits = std.findSubstr(needle, haystack);
+  if L(hits) == 0 then -1 else hits[0];
+
+local hasSubstr(needle, haystack) = findFirstSubstr(needle, haystack) != -1;
 
 // Copied from jsonnet std library. Added optional formatting and key ordering params.
 local default_json_key_order = [
@@ -77,7 +91,7 @@ local manifestJsonEx(
   newline='\n',
   key_val_sep=': ',
   key_sort_func=defaultJsonKeySorter
-) =
+      ) =
   local aux(v, path, cindent) =
     if v == true then
       'true'
@@ -134,11 +148,28 @@ local manifestProperties(value, key_sort_func=null) =
 // Conservative "safe to unquote" check for YAML plain scalars.
 // We avoid YAML-significant starts/separators and common implicit scalar values.
 local yamlIsSafePlainScalar(s) =
-  !re.matchRegex('^[,@>]', s) &&
+  local len = L(s);
+  local last = if len == 0 then '' else s[len - 1];
+  local isWordChar(c) = std.member('abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_', c);
+  local isAllowedPunctuation(c) = std.member(' -./@():;,+<=>!?$^~', c);
+  local hasOnlyAllowedChars(i) =
+    if i >= len then true
+    else
+      local c = s[i];
+      if isWordChar(c) || isAllowedPunctuation(c)
+      then hasOnlyAllowedChars(i + 1)
+      else false;
+  len > 0 &&
+  !std.member(',@>', firstChar(s)) &&
   !isYamlImplicitScalarLike(s) &&
-  !re.matchRegex('^[-?:] ', s) &&
-  !re.matchRegex(': | #|\t|\r', s) &&
-  re.matchRegex('^[\\w\\d -./@():;,+<=>!?$^~]*[^ :]$', s);
+  !(len >= 2 && std.member('-?:', firstChar(s)) && s[1] == ' ') &&
+  !hasSubstr(': ', s) &&
+  !hasSubstr(' #', s) &&
+  !hasSubstr('\t', s) &&
+  !hasSubstr('\r', s) &&
+  last != ' ' &&
+  last != ':' &&
+  hasOnlyAllowedChars(0);
 
 local yamlDecodeDoubleQuotedScalar(value) =
   assert std.isString(value);
@@ -150,14 +181,11 @@ local yamlDecodeDoubleQuotedScalar(value) =
   restored_backslashes;
 
 local yamlParseQuotedScalarLine(line) =
-  local split_on_quoted = std.split(line, ': "');
-  local has_quoted_value = L(split_on_quoted) > 1 && std.endsWith(line, '"');
+  local split_index = findFirstSubstr(': "', line);
+  local has_quoted_value = split_index != -1 && std.endsWith(line, '"');
   if !has_quoted_value then null else
-    local prefix = split_on_quoted[0];
-    local value_with_suffix = std.join(
-      ': "',
-      std.slice(split_on_quoted, 1, L(split_on_quoted), 1)
-    );
+    local prefix = std.substr(line, 0, split_index);
+    local value_with_suffix = std.substr(line, split_index + 3, L(line) - split_index - 3);
     local quoted_value = std.substr(value_with_suffix, 0, L(value_with_suffix) - 1);
     local key_tokens = [token for token in std.split(prefix, ' ') if token != ''];
     local key = key_tokens[L(key_tokens) - 1];
@@ -170,14 +198,11 @@ local yamlParseQuotedScalarLine(line) =
     };
 
 local yamlParseQuotedListItemLine(line) =
-  local split_on_quoted = std.split(line, '- "');
-  local has_quoted_value = L(split_on_quoted) > 1 && std.endsWith(line, '"');
+  local split_index = findFirstSubstr('- "', line);
+  local has_quoted_value = split_index != -1 && std.endsWith(line, '"');
   if !has_quoted_value then null else
-    local indent = split_on_quoted[0];
-    local value_with_suffix = std.join(
-      '- "',
-      std.slice(split_on_quoted, 1, L(split_on_quoted), 1)
-    );
+    local indent = std.substr(line, 0, split_index);
+    local value_with_suffix = std.substr(line, split_index + 3, L(line) - split_index - 3);
     local quoted_value = std.substr(value_with_suffix, 0, L(value_with_suffix) - 1);
     {
       indent: indent,
@@ -219,10 +244,9 @@ local manifestYamlWithRunBlocks(
   top_level_newline='\n\n',
   key_sort_func=defaultYamlTopLevelKeySorter,
   unquote_safe_strings=true
-) =
+      ) =
   local raw = std.manifestYamlDoc(value, quote_keys=false);
   local lines = std.split(raw, '\n');
-  local flatten(arrays) = std.foldl(function(acc, x) acc + x, arrays, []);
   local transform_line(line) =
     local normalized_line = yamlNormalizeKeyQuotes(line);
     local parsed_line = yamlParseQuotedScalarLine(normalized_line);
@@ -235,43 +259,49 @@ local manifestYamlWithRunBlocks(
       if parsed_list_item_line != null && unquote_safe_strings && yamlIsSafePlainScalar(decoded_list_item_quoted_value)
       then [parsed_list_item_line.indent + '- ' + decoded_list_item_quoted_value]
       else [normalized_line]
-    else if containsAny(decoded_quoted_value, ['\n']) then
+    else if hasSubstr('\n', decoded_quoted_value) then
       yamlToRunBlockLines(parsed_line)
     else
       if unquote_safe_strings && yamlIsSafePlainScalar(decoded_quoted_value)
       then [parsed_line.prefix + ': ' + decoded_quoted_value]
       else [normalized_line];
-  local rendered_lines = flatten([transform_line(line) for line in lines]);
-  local is_top_level_object = L(rendered_lines) > 0 && yamlIsTopLevelHeader(rendered_lines[0]);
-  local grouped_lines =
-    if !is_top_level_object then null else
-      std.foldl(
-        function(acc, line)
-          if yamlIsTopLevelHeader(line) then
-            acc {
-              order: acc.order + [line],
-              groups: acc.groups + { [line]: [line] },
-              current: line,
-            }
-          else if acc.current == null then
-            acc
-          else
-            acc {
-              groups: acc.groups + { [acc.current]: acc.groups[acc.current] + [line] },
-            },
-        rendered_lines,
-        { order: [], groups: {}, current: null }
-      );
+  local rendered_lines = [out for line in lines for out in transform_line(line)];
+  local top_level_header_indexes =
+    if L(rendered_lines) == 0 then [] else [
+      i
+      for i in std.range(0, L(rendered_lines) - 1)
+      if yamlIsTopLevelHeader(rendered_lines[i])
+    ];
+  local is_top_level_object =
+    L(top_level_header_indexes) > 0 &&
+    top_level_header_indexes[0] == 0;
   local reorder_top_level_lines =
-    if grouped_lines == null then rendered_lines else
-      local key_from_header(header) = std.split(header, ':')[0];
-      local ordered_headers = std.sort(grouped_lines.order, function(h) key_sort_func(key_from_header(h)));
-      [std.join(newline, grouped_lines.groups[h]) for h in ordered_headers];
-  if grouped_lines == null
+    if !is_top_level_object then rendered_lines else
+      local section_count = L(top_level_header_indexes);
+      local section_indexes = std.range(0, section_count - 1);
+      local section_lines = [
+        std.slice(
+          rendered_lines,
+          top_level_header_indexes[i],
+          if i + 1 < section_count then top_level_header_indexes[i + 1] else L(rendered_lines),
+          1
+        )
+        for i in section_indexes
+      ];
+      local key_from_header(header) =
+        local colon_index = findFirstSubstr(':', header);
+        if colon_index == -1 then header else std.substr(header, 0, colon_index);
+      local ordered_section_indexes = std.sort(
+        section_indexes,
+        function(i) key_sort_func(key_from_header(rendered_lines[top_level_header_indexes[i]]))
+      );
+      [std.join(newline, section_lines[i]) for i in ordered_section_indexes];
+  if !is_top_level_object
   then std.join(newline, reorder_top_level_lines)
   else std.join(top_level_newline, reorder_top_level_lines);
 
 str + re + {
+  indexOf: indexOf,
   manifestProperties: manifestProperties,
   manifestJson: manifestJsonEx,
   manifestJsonEx: manifestJsonEx,

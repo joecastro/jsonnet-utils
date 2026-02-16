@@ -1,20 +1,10 @@
 local L(s) = std.length(s);
 
 {
-  indexOf(arr, elem)::
-    local find_results = std.find(elem, arr);
-    if L(find_results) == 0 then -1 else find_results[0],
-
   containsAny(s, needles)::
     L([needle for needle in needles if L(std.findSubstr(needle, s)) > 0]) > 0,
 
-  charsOf(s)::
-    if L(s) == 0 then []
-    else [std.substr(s, i, 1) for i in std.range(0, L(s) - 1)],
-
-  firstChar(s):: if L(s) == 0 then '' else std.substr(s, 0, 1),
-
-  ch(s, i):: if i < L(s) then std.substr(s, i, 1),
+  firstChar(s):: if L(s) == 0 then '' else s[0],
 
   startsWithAt(s, si, needle)::
     if si < 0 || si > L(s) then false
@@ -30,7 +20,7 @@ local L(s) = std.length(s);
       local loop(i, current, parts) =
         if i >= L(s) then addPiece(parts, current)
         else
-          local ch = std.substr(s, i, 1);
+          local ch = s[i];
           if std.objectHas(delimiterSet, ch) then
             loop(i + 1, '', addPiece(parts, current))
           else

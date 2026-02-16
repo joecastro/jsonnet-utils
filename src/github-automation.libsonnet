@@ -1,6 +1,6 @@
 local stdEx = import './stdEx.libsonnet';
 
-local expr(content) = "${{ " + content + " }}";
+local expr(content) = '${{ ' + content + ' }}';
 
 local permissions = {
   default: {
@@ -48,7 +48,7 @@ local Input(id, description, type=null, required=false, default=null, options=nu
 local inputsById(inputs) =
   assert std.type(inputs) == 'array' : 'inputs must be an array';
   std.foldl(
-    function(acc, i) acc + {
+    function(acc, i) acc {
       [i.id]: i,
     },
     inputs,
@@ -117,13 +117,20 @@ local Workflow(name, triggers, jobs, concurrency=null) =
   local merged_triggers = std.foldl(function(acc, t) acc + t, triggers, {});
   local trigger_keys = std.objectFields(merged_triggers);
   local empty_trigger_keys = [k for k in trigger_keys if merged_triggers[k] == {}];
+  local normalize_trigger_value(value) =
+    if value == {}
+    then null
+    else value;
   local normalized_triggers =
     if std.length(trigger_keys) > 0 && std.length(empty_trigger_keys) == std.length(trigger_keys)
     then empty_trigger_keys
-    else merged_triggers;
+    else {
+      [k]: normalize_trigger_value(merged_triggers[k])
+      for k in trigger_keys
+    };
   local jobs_by_id = std.foldl(
-    function(acc, job) acc + {
-      [job.id]: std.prune(job + { id: null }),
+    function(acc, job) acc {
+      [job.id]: std.prune(job { id: null }),
     },
     jobs,
     {}
@@ -379,8 +386,30 @@ local githubScriptStep(id, name, script, env=null) =
     env=env
   );
 
+local manifestYaml(value) =
+  local raw = stdEx.manifestYamlWithRunBlocks(value);
+  local normalized = std.foldl(
+    function(state, line)
+      local is_top_level = std.length(line) > 0 && !std.startsWith(line, ' ');
+      local is_on_direct_child =
+        state.in_on && std.startsWith(line, '  ') && !std.startsWith(line, '    ');
+      local normalized_line =
+        if is_on_direct_child && std.endsWith(line, ': null')
+        then std.substr(line, 0, std.length(line) - 5)
+        else if is_on_direct_child && std.endsWith(line, ': {}')
+        then std.substr(line, 0, std.length(line) - 3)
+        else line;
+      {
+        lines: state.lines + [normalized_line],
+        in_on: if is_top_level then line == 'on:' else state.in_on,
+      },
+    std.split(raw, '\n'),
+    { lines: [], in_on: false }
+  );
+  std.join('\n', normalized.lines);
+
 {
-  manifestYaml: stdEx.manifestYamlWithRunBlocks,
+  manifestYaml: manifestYaml,
   expr: expr,
   Step: Step,
   BashShellStep: BashShellStep,

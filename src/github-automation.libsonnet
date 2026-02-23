@@ -116,15 +116,12 @@ local Workflow(name, triggers, jobs, concurrency=null) =
   assert std.type(jobs) == 'array' : 'jobs must be an array';
   local merged_triggers = std.foldl(function(acc, t) acc + t, triggers, {});
   local trigger_keys = std.objectFields(merged_triggers);
-  local empty_trigger_keys = [k for k in trigger_keys if merged_triggers[k] == {}];
   local normalize_trigger_value(value) =
     if value == {}
     then null
     else value;
   local normalized_triggers =
-    if std.length(trigger_keys) > 0 && std.length(empty_trigger_keys) == std.length(trigger_keys)
-    then empty_trigger_keys
-    else {
+    {
       [k]: normalize_trigger_value(merged_triggers[k])
       for k in trigger_keys
     };
@@ -151,7 +148,8 @@ local Job(
   env=null,
   needs=null,
   if_condition=null,
-  environment=null
+  environment=null,
+  strategy=null
       ) = {
   id:: id,
   name: name,
@@ -162,6 +160,13 @@ local Job(
   [if needs != null then 'needs']: needs,
   [if if_condition != null then 'if']: if_condition,
   [if environment != null then 'environment']: environment,
+  [if strategy != null then 'strategy']: strategy,
+  output_path:: function(prop, scope='needs')
+    assert self.id != null : 'Job id is required when referencing outputs via output_path/output_ref';
+    scope + '.' + self.id + '.outputs.' + prop,
+  output_ref:: function(prop, compare_arg=null, scope='needs')
+    if compare_arg != null then expr(self.output_path(prop, scope) + ' ' + compare_arg)
+    else expr(self.output_path(prop, scope)),
 };
 
 local Step(
@@ -196,16 +201,15 @@ local shellQuoteSingle(s) =
 
 local normalizeBashRun(name, run_lines) =
   assert std.type(run_lines) == 'array' : 'BashShellStep run must be an array of lines';
-  local lines = run_lines;
-  local is_multiline = std.length(lines) > 1;
-  if is_multiline then
-    local body_lines =
-      if std.length(lines) > 0 && lines[0] == 'set -euo pipefail'
-      then std.slice(lines, 1, std.length(lines), 1)
-      else lines;
-    std.join('\n', ['echo ' + shellQuoteSingle(name), 'set -euo pipefail'] + body_lines)
+  assert std.length(run_lines) > 0 : 'BashShellStep run must have at least one line';
+  assert run_lines[0] != 'set -euo pipefail' : 'BashShellStep run should not include set -euo pipefail, it is added automatically';
+  if std.length(run_lines) == 1 then
+    run_lines[0]
   else
-    std.join('\n', lines);
+    'echo ' + shellQuoteSingle(name) + '\n' +
+    'set -euo pipefail\n' +
+    // Add an extra newline after the multiline string so Jsonnet's std.manifestYamlDoc will expand to run blocks.
+    std.join('\n', run_lines) + '\n';
 
 local BashShellStep(
   id,
@@ -386,161 +390,15 @@ local githubScriptStep(id, name, script, env=null) =
     env=env
   );
 
-local default_yaml_top_level_key_order = ['name', 'on'];
-local defaultYamlTopLevelKeySorter(key) =
-  local index = stdEx.indexOf(default_yaml_top_level_key_order, key);
-  if index != -1 then '%03d' % index + key else '999' + key;
-
-local normalizeGithubWorkflowYaml(
-  raw,
-  key_sort_func=defaultYamlTopLevelKeySorter,
-  reorder_top_level=true,
-  normalize_on_key=true,
-  normalize_empty_on_events=true
-      ) =
-  local normalized = std.foldl(
-    function(state, line)
-      local normalized_on_key_line =
-        if normalize_on_key && std.startsWith(line, '"on":')
-        then 'on:' + std.substr(line, 5, std.length(line) - 5)
-        else line;
-      local is_top_level = std.length(normalized_on_key_line) > 0 && !std.startsWith(normalized_on_key_line, ' ');
-      local is_on_direct_child =
-        normalize_empty_on_events &&
-        state.in_on &&
-        std.startsWith(line, '  ') &&
-        !std.startsWith(line, '    ');
-      local normalized_line =
-        if is_on_direct_child && std.endsWith(normalized_on_key_line, ': null')
-        then std.substr(normalized_on_key_line, 0, std.length(normalized_on_key_line) - 5)
-        else if is_on_direct_child && std.endsWith(normalized_on_key_line, ': {}')
-        then std.substr(normalized_on_key_line, 0, std.length(normalized_on_key_line) - 3)
-        else normalized_on_key_line;
-      {
-        lines: state.lines + [normalized_line],
-        in_on:
-          if !normalize_empty_on_events
-          then false
-          else if is_top_level then normalized_line == 'on:' else state.in_on,
-      },
-    std.split(raw, '\n'),
-    { lines: [], in_on: false }
-  );
-  local rendered_lines = normalized.lines;
-  if !reorder_top_level then
-    std.join('\n', rendered_lines)
-  else
-    local top_level_header_indexes =
-      if std.length(rendered_lines) == 0 then [] else [
-        i
-        for i in std.range(0, std.length(rendered_lines) - 1)
-        if std.length(rendered_lines[i]) > 0 &&
-           !std.startsWith(rendered_lines[i], ' ') &&
-           stdEx.containsAny(rendered_lines[i], [':'])
-      ];
-    local is_top_level_object =
-      std.length(top_level_header_indexes) > 0 &&
-      top_level_header_indexes[0] == 0;
-    local reorder_top_level_lines =
-      if !is_top_level_object then rendered_lines else
-        local section_count = std.length(top_level_header_indexes);
-        local section_indexes = std.range(0, section_count - 1);
-        local section_lines = [
-          std.slice(
-            rendered_lines,
-            top_level_header_indexes[i],
-            if i + 1 < section_count then top_level_header_indexes[i + 1] else std.length(rendered_lines),
-            1
-          )
-          for i in section_indexes
-        ];
-        local key_from_header(header) =
-          local split = std.split(header, ':');
-          split[0];
-        local ordered_section_indexes = std.sort(
-          section_indexes,
-          function(i) key_sort_func(key_from_header(rendered_lines[top_level_header_indexes[i]]))
-        );
-        [std.join('\n', section_lines[i]) for i in ordered_section_indexes];
-    if !is_top_level_object
-    then std.join('\n', reorder_top_level_lines)
-    else std.join('\n\n', reorder_top_level_lines);
-
-local manifest_yaml_profiles = {
-  pretty: {
-    render_mode: 'pretty',
-    unquote_safe_strings: true,
-    reorder_top_level: false,
-  },
-  fast: {
-    render_mode: 'fast',
-    reorder_top_level: true,
-  },
-};
-
-local default_manifest_yaml_options = {
-  profile: 'fast',
-  render_mode: 'fast',
-  unquote_safe_strings: true,
-  reorder_top_level: true,
-  normalize_on_key: true,
-  normalize_empty_on_events: true,
-  key_sort_func: defaultYamlTopLevelKeySorter,
-};
-
-local manifestYamlOptions(options={}) =
-  local provided =
-    if std.type(options) == 'boolean'
-    then { profile: if options then 'fast' else 'pretty' }
-    else options;
-  local profile_name =
-    if std.objectHas(provided, 'profile')
-    then provided.profile
-    else default_manifest_yaml_options.profile;
-  local profile_options =
-    if std.objectHas(manifest_yaml_profiles, profile_name)
-    then manifest_yaml_profiles[profile_name]
-    else error 'Unknown manifestYaml profile: ' + profile_name;
-  default_manifest_yaml_options + profile_options + provided;
-
-local manifestYamlWithOptions(value, options={}) =
-  local opts = manifestYamlOptions(options);
-  local raw =
-    if opts.render_mode == 'fast'
-    then std.manifestYamlDoc(value, quote_keys=false)
-    else stdEx.manifestYamlWithRunBlocks(
-      value,
-      key_sort_func=opts.key_sort_func,
-      unquote_safe_strings=opts.unquote_safe_strings
-    );
-  normalizeGithubWorkflowYaml(
-    raw,
-    key_sort_func=opts.key_sort_func,
-    reorder_top_level=opts.reorder_top_level,
-    normalize_on_key=opts.normalize_on_key,
-    normalize_empty_on_events=opts.normalize_empty_on_events
-  );
-
 local manifestYamlPretty(value, options={}) =
-  manifestYamlWithOptions(value, { profile: 'pretty' } + options);
+  stdEx.manifestYamlEx(value, stdEx.manifestYamlProfiles.pretty + options);
 
 local manifestYamlFast(value, options={}) =
-  manifestYamlWithOptions(value, { profile: 'fast' } + options);
-
-local manifestYaml(value, options={}, fast=null) =
-  local normalized_options =
-    if fast == null
-    then options
-    else if std.type(options) != 'object'
-    then { profile: if fast then 'fast' else 'pretty' }
-    else options { profile: if fast then 'fast' else 'pretty' };
-  manifestYamlWithOptions(value, normalized_options);
+  stdEx.manifestYamlEx(value, stdEx.manifestYamlProfiles.fast + options);
 
 {
-  manifestYaml: manifestYaml,
   manifestYamlPretty: manifestYamlPretty,
   manifestYamlFast: manifestYamlFast,
-  manifestYamlOptions: manifestYamlOptions,
   expr: expr,
   Step: Step,
   BashShellStep: BashShellStep,

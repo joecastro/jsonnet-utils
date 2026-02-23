@@ -25,6 +25,45 @@ SETTINGS_CHECK_IGNORE_KEYS = {
 }
 
 
+def parse_json_object(content: str) -> dict[str, object] | None:
+    try:
+        parsed = json.loads(content) if content.strip() else {}
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(parsed, dict):
+        return None
+    return parsed
+
+
+def extract_peacock_node(settings: dict[str, object]) -> dict[str, object]:
+    peacock_node: dict[str, object] = {}
+    for key, value in settings.items():
+        if key.startswith('peacock.') or key == 'workbench.colorCustomizations':
+            peacock_node[key] = value
+    return peacock_node
+
+
+def merge_peacock_node_if_base_unchanged(current: str, rendered: str) -> str:
+    current_settings = parse_json_object(current)
+    rendered_settings = parse_json_object(rendered)
+    if current_settings is None or rendered_settings is None:
+        return rendered
+
+    current_base = current_settings.get('peacock.color')
+    rendered_base = rendered_settings.get('peacock.color')
+    if current_base != rendered_base:
+        return rendered
+
+    peacock_node = extract_peacock_node(current_settings)
+    if not peacock_node:
+        return rendered
+
+    for key, value in peacock_node.items():
+        rendered_settings[key] = value
+    return json.dumps(rendered_settings, indent=2, sort_keys=True) + '\n'
+
+
 def render_jsonnet(source: Path) -> str:
     result = subprocess.run(
         ['jsonnet', '-S', str(REPO_ROOT / source)],
@@ -51,13 +90,9 @@ def normalized_for_check(destination: str, content: str) -> str:
     if not ignore_keys:
         return content
 
-    try:
-        parsed = json.loads(content) if content.strip() else {}
-    except json.JSONDecodeError:
-        # Keep original behavior: invalid JSON should still fail the check.
-        return content
-
-    if not isinstance(parsed, dict):
+    parsed = parse_json_object(content)
+    if parsed is None:
+        # Keep original behavior: invalid/non-object JSON should still fail the check.
         return content
 
     normalized = {k: v for k, v in parsed.items() if k not in ignore_keys}
@@ -74,12 +109,15 @@ def main() -> int:
     for source, destination in RENDER_TARGETS.items():
         rendered = render_jsonnet(Path(source))
         destination_path = REPO_ROOT / destination
+        current = destination_path.read_text(encoding='utf-8') if destination_path.exists() else ''
 
         if args.check:
-            current = destination_path.read_text(encoding='utf-8') if destination_path.exists() else ''
             if normalized_for_check(destination, current) != normalized_for_check(destination, rendered):
                 changed.append(destination)
             continue
+
+        if destination == '.vscode/settings.json':
+            rendered = merge_peacock_node_if_base_unchanged(current, rendered)
 
         if write_if_changed(destination_path, rendered):
             changed.append(destination)

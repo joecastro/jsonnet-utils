@@ -1,8 +1,8 @@
 name: Jsonnet Tests
 
 on:
-- pull_request
-- push
+  pull_request:
+  push:
 
 jobs:
   test:
@@ -24,7 +24,7 @@ jobs:
       name: Restore jsonnet cache
       uses: actions/cache@v4
       with:
-        key: "jsonnet-${{ runner.os }}-v0.21.0"
+        key: jsonnet-${{ runner.os }}-v0.21.0
         path: ~/.cache/jsonnet
     - name: Build jsonnet
       run: |

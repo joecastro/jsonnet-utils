@@ -59,4 +59,4 @@ local workflow = gha.Workflow(
   }
 );
 
-gha.manifestYaml(workflow, fast=true)
+gha.manifestYamlFast(workflow)

@@ -53,10 +53,10 @@ local composite = gha.CompositeAction(
 {
   workflow: {
     pretty: gha.manifestYamlPretty(workflow),
-    fast: gha.manifestYaml(workflow, { profile: 'fast' }),
+    fast: gha.manifestYamlFast(workflow),
   },
   composite: {
     pretty: gha.manifestYamlPretty(composite),
-    fast: gha.manifestYaml(composite, { profile: 'fast' }),
+    fast: gha.manifestYamlFast(composite),
   },
 }

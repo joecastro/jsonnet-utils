@@ -1,5 +1,5 @@
-local T = import './test.libsonnet';
 local vs = import '../src/vscode.libsonnet';
+local T = import './test.libsonnet';
 
 local fakeScript(key, description='desc') = { key: key, description: description };
 

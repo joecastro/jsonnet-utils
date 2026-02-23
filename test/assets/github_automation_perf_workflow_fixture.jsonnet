@@ -156,4 +156,4 @@ local workflow = gha.Workflow(
   [infraJob] + serviceJobs + frontendJobs
 );
 
-gha.manifestYaml(workflow, fast=true)
+gha.manifestYamlFast(workflow)

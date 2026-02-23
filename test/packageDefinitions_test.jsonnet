@@ -1,5 +1,5 @@
-local T = import './test.libsonnet';
 local pkg = import '../src/packageDefinitions.libsonnet';
+local T = import './test.libsonnet';
 local trimTrailingNewline(s) =
   if std.endsWith(s, '\n')
   then std.substr(s, 0, std.length(s) - 1)

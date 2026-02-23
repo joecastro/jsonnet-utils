@@ -1,6 +1,7 @@
 const assert = require('assert');
 const { execFileSync } = require('child_process');
 const path = require('path');
+const fs = require('fs');
 const { performance } = require('perf_hooks');
 
 const renderJsonnet = (fixturePath) => {
@@ -38,6 +39,17 @@ const measureRender = (fixturePath, iterations = 1) => {
 };
 
 const includesAny = (text, candidates) => candidates.some((candidate) => text.includes(candidate));
+const profileCompareIterations = Number(process.env.PROFILE_COMPARE_ITERATIONS || 3);
+
+const renderFixtureWithProfile = (fixturePath, profile = 'fast') => {
+  if (profile === 'fast') return fixturePath;
+
+  const source = fs.readFileSync(fixturePath, 'utf8');
+  const rewritten = source.replace(/gha\.manifestYamlFast\(/g, 'gha.manifestYamlPretty(');
+  const tmpFixture = fixturePath.replace(/\.jsonnet$/, '.tmp_pretty_profile_bench.jsonnet');
+  fs.writeFileSync(tmpFixture, rewritten, 'utf8');
+  return tmpFixture;
+};
 
 describe('github automation performance', () => {
   const publishFixture = path.join(__dirname, 'assets/github_automation_perf_workflow_fixture.jsonnet');
@@ -70,5 +82,37 @@ describe('github automation performance', () => {
     assert.ok(run.output.includes('runs:'), 'expected runs block in output');
     assert.ok(includesAny(run.output, ['using: composite', 'using: "composite"']), 'expected composite action type in output');
     assert.ok(run.medianMs <= compositeBudgetMs, `median render ${run.medianMs.toFixed(1)}ms exceeded ${compositeBudgetMs}ms (${run.durations.map((d) => d.toFixed(1)).join(', ')})`);
+  });
+
+  it('reports fast vs pretty profile timing comparison (informational)', function testProfileComparison() {
+    this.timeout(120000);
+
+    const fixtures = [
+      ['workflow', publishFixture],
+      ['apply', applyFixture],
+      ['composite', compositeFixture],
+    ];
+
+    const reportLines = [];
+
+    for (const [name, baseFixture] of fixtures) {
+      const fastFixture = renderFixtureWithProfile(baseFixture, 'fast');
+      const prettyFixture = renderFixtureWithProfile(baseFixture, 'pretty');
+      try {
+        const fastRun = measureRender(fastFixture, profileCompareIterations);
+        const prettyRun = measureRender(prettyFixture, profileCompareIterations);
+        const deltaMs = prettyRun.medianMs - fastRun.medianMs;
+        const deltaPct = fastRun.medianMs === 0 ? 0 : (deltaMs / fastRun.medianMs) * 100;
+        reportLines.push(
+          `${name}: fast=${fastRun.medianMs.toFixed(1)}ms pretty=${prettyRun.medianMs.toFixed(1)}ms ` +
+          `delta=${deltaMs >= 0 ? '+' : ''}${deltaMs.toFixed(1)}ms (${deltaMs >= 0 ? '+' : ''}${deltaPct.toFixed(1)}%)`
+        );
+        assert.ok(fastRun.output.length > 0 && prettyRun.output.length > 0, `expected ${name} outputs for both profiles`);
+      } finally {
+        if (prettyFixture !== baseFixture && fs.existsSync(prettyFixture)) fs.unlinkSync(prettyFixture);
+      }
+    }
+
+    console.log(`profile comparison (${profileCompareIterations} run median):\n  ${reportLines.join('\n  ')}`);
   });
 });

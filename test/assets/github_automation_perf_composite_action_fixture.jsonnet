@@ -84,4 +84,4 @@ local applyAction = gha.CompositeAction(
   ]
 );
 
-gha.manifestYaml(applyAction, fast=true)
+gha.manifestYamlFast(applyAction)

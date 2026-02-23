@@ -1,15 +1,19 @@
 local stdEx = import '../src/stdEx.libsonnet';
 local T = import './test.libsonnet';
-local trimTrailingNewline(s) =
+local trimTrailingNewlines(s) =
   if std.endsWith(s, '\n')
-  then std.substr(s, 0, std.length(s) - 1)
+  then trimTrailingNewlines(std.substr(s, 0, std.length(s) - 1))
   else s;
+local trimTrailingNewline(s) =
+  trimTrailingNewlines(s);
+local fromLines(lines) = std.join('\n', lines) + '\n';
 
 local words = 'hello-world_test';
 
 local props_input = { a: true, b: 2, c: null };
 // Note: keys sorted alphabetically: a, b, c
 local props_expected = 'a=true\nb=2\nc=';
+local pretty_yaml_options = stdEx.manifestYamlProfiles.pretty;
 
 T.suite('stdEx', [
   T.equal('indexOf: present', stdEx.indexOf([1, 2, 3], 2), 1),
@@ -40,27 +44,17 @@ T.suite('stdEx', [
     trimTrailingNewline(importstr './assets/stdEx_manifestJsonEx_version_first_expected.json')
   ),
   T.equal(
-    'manifestYamlWithRunBlocks orders name/on first with blank lines',
-    stdEx.manifestYamlWithRunBlocks({
+    'manifestYamlEx orders name/on first with blank lines',
+    stdEx.manifestYamlEx({
       jobs: { test: { 'runs-on': 'ubuntu-latest' } },
       name: 'Example',
       on: { push: {} },
-    }),
+    }, pretty_yaml_options { compact_null_children_of_top_level_key: null }),
     trimTrailingNewline(importstr './assets/stdEx_manifestYaml_order_expected.yml')
   ),
   T.equal(
-    'manifestYamlWithRunBlocks supports custom key sorting/newlines',
-    stdEx.manifestYamlWithRunBlocks(
-      { b: 2, a: 1 },
-      '\n',
-      '\n---\n',
-      function(k) k
-    ),
-    trimTrailingNewline(importstr './assets/stdEx_manifestYaml_custom_separator_expected.yml')
-  ),
-  T.equal(
-    'manifestYamlWithRunBlocks can unquote safe strings',
-    stdEx.manifestYamlWithRunBlocks(
+    'manifestYamlEx can unquote safe strings',
+    stdEx.manifestYamlEx(
       {
         a: 'hello world',
         b: 'on',
@@ -71,16 +65,24 @@ T.suite('stdEx', [
         g: 'name: value',
         h: 'bootstrap:check',
       },
-      '\n',
-      '\n\n',
-      function(k) k,
-      true
+      pretty_yaml_options
     ),
     trimTrailingNewline(importstr './assets/stdEx_manifestYaml_unquote_safe_strings_expected.yml')
   ),
   T.equal(
-    'manifestYamlWithRunBlocks handles complex workflow rendering',
-    stdEx.manifestYamlWithRunBlocks({
+    'manifestYamlEx keeps backslash-escaped values quoted and keeps leading * quoted',
+    stdEx.manifestYamlEx(
+      {
+        alias: '*build',
+        escaped: 'line\\nvalue',
+      },
+      pretty_yaml_options
+    ),
+    'alias: "*build"\n\nescaped: "line\\\\nvalue"'
+  ),
+  T.equal(
+    'manifestYamlEx handles complex workflow rendering',
+    stdEx.manifestYamlEx({
       jobs: {
         build: {
           'runs-on': 'ubuntu-latest',
@@ -95,7 +97,11 @@ T.suite('stdEx', [
             },
             {
               name: 'Test',
-              run: 'npm ci\nnpm test\nnpm run lint',
+              run: fromLines([
+                'npm ci',
+                'npm test',
+                'npm run lint',
+              ]),
             },
             {
               name: 'Args',
@@ -115,19 +121,22 @@ T.suite('stdEx', [
       },
       name: 'CI',
       on: { pull_request: {}, push: { branches: ['main'] } },
-    }),
+    }, pretty_yaml_options { compact_null_children_of_top_level_key: null }),
     trimTrailingNewline(importstr './assets/stdEx_manifestYaml_complex_workflow_expected.yml')
   ),
   T.equal(
-    'manifestYamlWithRunBlocks keeps scalar quotes when unquote is disabled',
-    stdEx.manifestYamlWithRunBlocks(
+    'manifestYamlEx keeps scalar quotes when unquote is disabled',
+    stdEx.manifestYamlEx(
       {
         jobs: {
           demo: {
             steps: [
               {
                 name: 'Echo',
-                run: 'echo hello\necho world',
+                run: fromLines([
+                  'echo hello',
+                  'echo world',
+                ]),
               },
             ],
           },
@@ -135,11 +144,49 @@ T.suite('stdEx', [
         labels: ['alpha', 'beta', '123'],
         name: 'Quoted Mode',
       },
-      '\n',
-      '\n\n',
-      function(k) k,
-      false
+      pretty_yaml_options {
+        unquote_safe_strings: false,
+        top_level_key_order: ['jobs', 'labels', 'name'],
+      }
     ),
     trimTrailingNewline(importstr './assets/stdEx_manifestYaml_unquote_disabled_expected.yml')
+  ),
+  T.equal(
+    'manifestYamlEx accepts profile string options',
+    {
+      pretty: stdEx.manifestYamlEx(
+        { name: 'Example', on: { push: {} }, jobs: { test: { 'runs-on': 'ubuntu-latest' } } },
+        'pretty'
+      ),
+      fast: stdEx.manifestYamlEx(
+        { name: 'Example', on: { push: {} }, jobs: { test: { 'runs-on': 'ubuntu-latest' } } },
+        'fast'
+      ),
+    },
+    {
+      pretty: stdEx.manifestYamlEx(
+        { name: 'Example', on: { push: {} }, jobs: { test: { 'runs-on': 'ubuntu-latest' } } },
+        stdEx.manifestYamlProfiles.pretty
+      ),
+      fast: stdEx.manifestYamlEx(
+        { name: 'Example', on: { push: {} }, jobs: { test: { 'runs-on': 'ubuntu-latest' } } },
+        stdEx.manifestYamlProfiles.fast
+      ),
+    }
+  ),
+  T.equal(
+    'manifestYamlEx can disable on normalization and null compaction',
+    stdEx.manifestYamlEx(
+      {
+        on: {
+          workflow_dispatch: {},
+        },
+      },
+      pretty_yaml_options {
+        normalize_top_level_on_key: false,
+        compact_null_values: false,
+      }
+    ),
+    '"on":\n  workflow_dispatch: {}'
   ),
 ])

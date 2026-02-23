@@ -1,5 +1,5 @@
-local T = import './test.libsonnet';
 local ext = import '../src/vscode-extensionDefinitions.libsonnet';
+local T = import './test.libsonnet';
 
 local cfg = ext.bind('myext').ConfigurationProperty;
 
@@ -13,7 +13,7 @@ local aspect = ext.AspectDefinition(
   { name: 'myext' },
   'Build',
   'build',
-  [ ext.Command('Run', 'run', icon) ]
+  [ext.Command('Run', 'run', icon)]
 );
 
 [

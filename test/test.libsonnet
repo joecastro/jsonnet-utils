@@ -1,11 +1,11 @@
 local joinIfStringArray(arr) =
-    if std.type(arr) == "array" && std.length(arr) > 0 && std.type(arr[0]) == "string"
-    then std.join("\n", arr)
-    else arr;
+  if std.type(arr) == 'array' && std.length(arr) > 0 && std.type(arr[0]) == 'string'
+  then std.join('\n', arr)
+  else arr;
 
 {
   // Create an equality test case
-  equal(name, got, want)::{
+  equal(name, got, want):: {
     name: name,
     pass: got == want,
     got: joinIfStringArray(got),

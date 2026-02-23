@@ -1,5 +1,5 @@
-local T = import './test.libsonnet';
 local icons = import '../src/vscode-iconDefinitions.libsonnet';
+local T = import './test.libsonnet';
 
 local s = icons.StandardIcon('rocket');
 local i = icons.IconDefinition('plane', 'Airplane', 'font.ttf', '\\uE001');

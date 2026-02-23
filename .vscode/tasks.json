@@ -16,6 +16,24 @@
     },
     {
       "type": "npm",
+      "detail": "Format Jsonnet files",
+      "label": "npm: format:jsonnet",
+      "presentation": {
+        "reveal": "always"
+      },
+      "script": "format:jsonnet"
+    },
+    {
+      "type": "npm",
+      "detail": "Generate config files from Jsonnet",
+      "label": "npm: bootstrap",
+      "presentation": {
+        "reveal": "always"
+      },
+      "script": "bootstrap"
+    },
+    {
+      "type": "npm",
       "detail": "Run ESLint",
       "label": "npm: lint",
       "presentation": {
